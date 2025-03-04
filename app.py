@@ -4,6 +4,7 @@ from flask import Flask, render_template, jsonify
 
 # Initialize the Flask application
 app = Flask(__name__)
+
 # Home page - returns an HTML page
 @app.route('/')
 def home():
