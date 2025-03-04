@@ -11,10 +11,12 @@ pipeline {
 
         stage('Build') {
             steps {
-                // Set up a Python virtual environment and install dependencies
+                // Ensure Python virtual environment exists and install dependencies
                 sh '''
                     echo "Setting up virtual environment..."
-                    python3 -m venv venv  # Create a virtual environment
+                    if [ ! -d "venv" ]; then
+                        python3 -m venv venv  # Create a virtual environment if not exists
+                    fi
                     bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest"
                 '''
             }
@@ -24,12 +26,21 @@ pipeline {
             steps {
                 sh '''
                     echo "Stopping any existing Flask server..."
-                    pkill -f "python3 app.py" || true  # Ignore error if not running
+                    pkill -f "python3 app.py" || true  # Ignore error if process is not running
+
+                    echo "Ensuring port 5000 is free..."
+                    sudo fuser -k 5000/tcp || true  # Forcefully kill any process using port 5000
 
                     echo "Starting Flask server..."
-                    sudo systemctl restart flask_app
-                    #bash -c "source venv/bin/activate && nohup python3 app.py &"
+                    nohup bash -c "source venv/bin/activate && exec python3 app.py" > flask.log 2>&1 &
+
                     sleep 5  # Give it time to initialize
+
+                    echo "Checking if Flask server is running..."
+                    if ! curl -s http://127.0.0.1:5000/health; then
+                        echo "Flask server failed to start!"
+                        exit 1
+                    fi
                 '''
             }
         }
