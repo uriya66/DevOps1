@@ -20,16 +20,18 @@ pipeline {
             }
         }
 
-        stage('Start Server') {
-            steps {
-                // Start the Flask application in the background using nohup
-                sh '''
-                    echo "Starting Flask server..."
-                    bash -c "source venv/bin/activate && nohup python3 app.py &"
-                    sleep 5  # Allow time for the server to initialize
-                '''
-            }
-        }
+stage('Start Server') {
+    steps {
+        sh '''
+            echo "Stopping any existing Flask server..."
+            pkill -f "python3 app.py" || true  # Ignore error if not running
+
+            echo "Starting Flask server..."
+            bash -c "source venv/bin/activate && nohup python3 app.py &"
+            sleep 5  # Give it time to initialize
+        '''
+    }
+}
 
         stage('Test') {
             steps {
