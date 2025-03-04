@@ -1,23 +1,27 @@
-from flask import Flask, jsonify
+
+from flask import Flask, render_template, jsonify
+
 
 # Initialize the Flask application
 app = Flask(__name__)
-
-# Define the home route
+# Home page - returns an HTML page
 @app.route('/')
 def home():
-    return "Welcome to the Home Page", 200
+    return render_template('home.html')
 
-# Define a health check route
+
+# Health check - returns an HTML page
 @app.route('/health')
 def health_check():
-    return jsonify({"status": "ok"}), 200
+    return render_template('health.html')
 
-# Handle 404 errors gracefully
+
+# Custom 404 page
 @app.errorhandler(404)
 def not_found(e):
-    return jsonify({"error": "Not Found"}), 404
+    return render_template('404.html'), 404
+
 
 # Run the application on all network interfaces (0.0.0.0) at port 5000
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
