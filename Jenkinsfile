@@ -13,9 +13,7 @@ pipeline {
                 sh '''
                     echo "Setting up virtual environment..."
                     python3 -m venv venv
-                    source venv/bin/activate
-                    pip install --upgrade pip
-                    pip install flask requests pytest
+                    bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest"
                 '''
             }
         }
@@ -24,8 +22,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Starting Flask server..."
-                    source venv/bin/activate
-                    nohup python3 app.py & 
+                    bash -c "source venv/bin/activate && nohup python3 app.py &"
                     sleep 5
                 '''
             }
@@ -35,8 +32,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Running Tests..."
-                    source venv/bin/activate
-                    pytest test_app.py
+                    bash -c "source venv/bin/activate && pytest test_app.py"
                 '''
             }
         }
