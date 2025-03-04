@@ -11,19 +11,26 @@ pipeline {
         stage('Build') {
             steps {
                 sh 'echo "Building Project..."'
-                sh 'chmod +x deploy.sh && ./deploy.sh'
+                sh 'pip install flask requests pytest'
+            }
+        }
+
+        stage('Start Server') {
+            steps {
+                sh 'nohup python3 app.py &'
+                sh 'sleep 5'  // Waiting for the server to start working
             }
         }
 
         stage('Test') {
             steps {
-                sh 'echo "Running Tests..."'
+                sh 'pytest test_app.py'
             }
         }
 
         stage('Deploy') {
             steps {
-                sh 'echo "Deploying Application..."'
+                echo "Deploying Application..."
             }
         }
     }
