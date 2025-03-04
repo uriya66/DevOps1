@@ -10,27 +10,43 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'echo "Building Project..."'
-                sh 'pip install flask requests pytest'
+                sh '''
+                    echo "Setting up virtual environment..."
+                    python3 -m venv venv
+                    source venv/bin/activate
+                    pip install --upgrade pip
+                    pip install flask requests pytest
+                '''
             }
         }
 
         stage('Start Server') {
             steps {
-                sh 'nohup python3 app.py &'
-                sh 'sleep 5'  // Waiting for the server to start working
+                sh '''
+                    echo "Starting Flask server..."
+                    source venv/bin/activate
+                    nohup python3 app.py & 
+                    sleep 5
+                '''
             }
         }
 
         stage('Test') {
             steps {
-                sh 'pytest test_app.py'
+                sh '''
+                    echo "Running Tests..."
+                    source venv/bin/activate
+                    pytest test_app.py
+                '''
             }
         }
 
         stage('Deploy') {
             steps {
-                echo "Deploying Application..."
+                sh '''
+                    chmod +x deploy.sh
+                    ./deploy.sh
+                '''
             }
         }
     }
