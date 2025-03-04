@@ -20,18 +20,19 @@ pipeline {
             }
         }
 
-stage('Start Server') {
-    steps {
-        sh '''
-            echo "Stopping any existing Flask server..."
-            pkill -f "python3 app.py" || true  # Ignore error if not running
+        stage('Start Server') {
+            steps {
+                sh '''
+                    echo "Stopping any existing Flask server..."
+                    pkill -f "python3 app.py" || true  # Ignore error if not running
 
-            echo "Starting Flask server..."
-            bash -c "source venv/bin/activate && nohup python3 app.py &"
-            sleep 5  # Give it time to initialize
-        '''
-    }
-}
+                    echo "Starting Flask server..."
+                    sudo systemctl restart flask_app
+                    #bash -c "source venv/bin/activate && nohup python3 app.py &"
+                    sleep 5  # Give it time to initialize
+                '''
+            }
+        }
 
         stage('Test') {
             steps {
