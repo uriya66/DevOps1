@@ -14,7 +14,7 @@ def test_health_check():
     """
     response = requests.get(f"{BASE_URL}/health")  # Send a request to the API
     assert response.status_code == 200  # Ensure the server returns HTTP 200 OK
-    assert "✅ Status: OK" in response.text  # Verify the expected output in the new HTML design
+    assert "✅ Application is Healthy!" in response.text  # Updated to match the new HTML structure
 
 def test_home_page():
     """
@@ -22,7 +22,7 @@ def test_home_page():
     """
     response = requests.get(BASE_URL)  # Send a request to the root endpoint
     assert response.status_code == 200  # Ensure the response is HTTP 200 OK
-    assert "Welcome to My Flask App!" in response.text  # Verify the expected output in the new HTML design
+    assert "Welcome to My Flask App!" in response.text  # Updated for new design
 
 def test_404_page():
     """
