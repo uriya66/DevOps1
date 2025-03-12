@@ -375,3 +375,33 @@ SyntaxError: invalid syntax
     return render_template('health.html') || return jsonify({"status": "ok"}), 200
                                            ^
 SyntaxError: invalid syntax
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.31.35.69:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 929-084-441
+139.59.122.158 - - [12/Mar/2025 13:17:21] code 400, message Bad HTTP/0.9 request type ('\x16\x03\x01\x00{\x01\x00\x00w\x03\x03©F*\x1263B^å\x16D\x9bÈ\x00z{³c×ÓÓ¡\x00\x9bZZá/\x13øì\x1b\x00\x00\x1aÀ/À+À\x11À\x07À\x13À')
+139.59.122.158 - - [12/Mar/2025 13:17:21] "[31m[1m\x16\x03\x01\x00{\x01\x00\x00w\x03\x03©F*\x1263B^å\x16D\x9bÈ\x00z{³c×ÓÓ¡\x00\x9bZZá/\x13øì\x1b\x00\x00\x1aÀ/À+À\x11À\x07À\x13À\x09À\x14À[0m" 400 -
+139.59.122.158 - - [12/Mar/2025 13:17:22] code 400, message Bad request version ('À\x14À')
+139.59.122.158 - - [12/Mar/2025 13:17:22] "[31m[1m\x16\x03\x01\x00{\x01\x00\x00w\x03\x03æU\x09\x03º,:â)ü\x18¥îè\x01°fÑPh°\x9dGl\x01þ\x1c\x05\x0cÆ\x7fS\x00\x00\x1aÀ/À+À\x11À\x07À\x13À\x09À\x14À[0m" 400 -
+139.59.122.158 - - [12/Mar/2025 13:17:22] "GET / HTTP/1.1" 200 -
+79.177.157.131 - - [12/Mar/2025 14:54:39] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.31.35.69:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 929-084-441
+ * Detected change in '/home/ubuntu/DevOps1/test_app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 929-084-441
+ * Detected change in '/home/ubuntu/DevOps1/app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 929-084-441

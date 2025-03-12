@@ -36,3 +36,4 @@ def test_api_response_format():
     json_data = response.json()
     assert "status" in json_data
     assert json_data["status"] == "ok"
+
