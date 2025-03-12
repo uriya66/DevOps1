@@ -17,7 +17,7 @@ pipeline {
                     if [ ! -d "venv" ]; then
                         python3 -m venv venv  # Create a virtual environment if not exists
                     fi
-                    source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest
+                    bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest"
                 '''
             }
         }
