@@ -50,7 +50,7 @@ pipeline {
                 // Run the test suite using pytest
                 sh '''
                     echo "Running Tests..."
-                    source venv/bin/activate && pytest test_app.py
+                    bash -c "source venv/bin/activate && pytest test_app.py"
                 '''
             }
         }
