@@ -1,0 +1,49 @@
+Traceback (most recent call last):
+  File "/home/ubuntu/DevOps1/app.py", line 2, in <module>
+    from flask import Flask, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/ubuntu/DevOps1/app.py", line 2, in <module>
+    from flask import Flask, jsonify
+ModuleNotFoundError: No module named 'flask'
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.31.35.69:5000
+[33mPress CTRL+C to quit[0m
+79.177.155.217 - - [04/Mar/2025 18:49:35] "[33mGET / HTTP/1.1[0m" 404 -
+79.177.155.217 - - [04/Mar/2025 18:49:36] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+79.177.155.217 - - [04/Mar/2025 18:49:37] "GET /health HTTP/1.1" 200 -
+79.177.155.217 - - [04/Mar/2025 18:51:12] "GET /health HTTP/1.1" 200 -
+79.177.155.217 - - [04/Mar/2025 18:51:17] "[33mGET / HTTP/1.1[0m" 404 -
+127.0.0.1 - - [04/Mar/2025 18:59:06] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 18:59:25] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:04:34] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:05:00] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:06:30] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:11:10] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:11:10] "[33mGET / HTTP/1.1[0m" 404 -
+127.0.0.1 - - [04/Mar/2025 19:13:10] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:13:10] "[33mGET / HTTP/1.1[0m" 404 -
+127.0.0.1 - - [04/Mar/2025 19:18:13] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:18:13] "[33mGET / HTTP/1.1[0m" 404 -
+172.172.245.224 - - [04/Mar/2025 19:18:39] "[33mGET /v2/ HTTP/1.1[0m" 404 -
+127.0.0.1 - - [04/Mar/2025 19:18:59] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:18:59] "[33mGET / HTTP/1.1[0m" 404 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.31.35.69:5000
+Press CTRL+C to quit
+79.177.155.217 - - [04/Mar/2025 19:27:37] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:29:19] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Mar/2025 19:29:19] "GET / HTTP/1.1" 200 -
+79.177.155.217 - - [04/Mar/2025 19:29:34] "GET /health HTTP/1.1" 200 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+Address already in use
+Port 5000 is in use by another program. Either identify and stop that program, or start the server with a different port.

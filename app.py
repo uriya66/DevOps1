@@ -14,7 +14,7 @@ def home():
 # Health check - returns an HTML page
 @app.route('/health')
 def health_check():
-    return render_template('health.html') || return jsonify({"status": "ok"}), 200
+    return jsonify({"status": "ok"}), 200
 
 
 # Custom 404 page

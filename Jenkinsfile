@@ -26,7 +26,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Stopping any existing Flask server..."
-                    pkill -9 -f "python3 app.py" || true  # Ignore error if process is not running
+                    sudo pkill -9 -f "python3 app.py" || true  # Ignore error if process is not running
 
                     echo "Ensuring port 5000 is free..."
                     sudo -n fuser -k 5000/tcp || true  # Forcefully kill any process using port 5000
@@ -69,7 +69,7 @@ pipeline {
     post {
         failure {
             // 📢 Send an alert to the Slack channel if the build fails
-            slackSend channel: '#devops-alerts', message: "❌ Jenkins Build Failed! Check pipeline: ${env.BUILD_URL}"
+            slackSend channel: '#devops-alerts', tokenCredentialId: 'Jenkins-GitHub-Token', message: "❌ Jenkins Build Failed! Check pipeline: ${env.BUILD_URL}"
         }
     }
 }
