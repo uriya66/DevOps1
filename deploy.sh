@@ -1,26 +1,26 @@
 #!/bin/bash
-# Deployment script for the Flask application
+# Deployment script using Gunicorn
 
-echo "Starting deployment..."
+echo "🚀 Deploying application with Gunicorn..."
 
-# Check if the application is already running and terminate it if needed
-if pgrep -f "python3 app.py" > /dev/null
+# Stop existing Flask process if running
+if pgrep -f "gunicorn" > /dev/null
 then
-    echo "Stopping existing application..."
-    pkill -f "python3 app.py"
+    echo "🛑 Stopping existing Gunicorn process..."
+    pkill -f "gunicorn"
     sleep 3
 fi
 
-# Check if the virtual environment exists, if not, create it
+# Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
-    echo "Creating virtual environment..."
+    echo "📦 Creating virtual environment..."
     python3 -m venv venv
 fi
 
-# Activate the virtual environment and install dependencies
-bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest"
+# Activate virtual environment and install dependencies
+bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask gunicorn requests pytest"
 
-# Start the Flask application in the background using nohup
-nohup bash -c "source venv/bin/activate && python3 app.py" > app.log 2>&1 &
+# Start the Flask application using Gunicorn with multiple workers
+nohup bash -c "source venv/bin/activate && gunicorn -w 4 -b 0.0.0.0:5000 app:app" > app.log 2>&1 &
 
-echo "Application is running at http://localhost:5000"
+echo "✅ Application is running with Gunicorn at http://localhost:5000"
