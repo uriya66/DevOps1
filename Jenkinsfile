@@ -26,7 +26,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Stopping any existing Flask server..."
-                    ppkill -9 -f "python3 app.py" || true  # Ignore error if process is not running
+                    pkill -9 -f "python3 app.py" || true  # Ignore error if process is not running
 
                     echo "Ensuring port 5000 is free..."
                     sudo fuser -k 5000/tcp || true  # Forcefully kill any process using port 5000
