@@ -29,7 +29,7 @@ pipeline {
                     pkill -9 -f "python3 app.py" || true  # Ignore error if process is not running
 
                     echo "Ensuring port 5000 is free..."
-                    sudo fuser -k 5000/tcp || true  # Forcefully kill any process using port 5000
+                    sudo -n fuser -k 5000/tcp || true  # Forcefully kill any process using port 5000
 
                     echo "Starting Flask server..."
                     nohup bash -c "source venv/bin/activate && exec python3 app.py" > flask.log 2>&1 &
