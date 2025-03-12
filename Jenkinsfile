@@ -15,7 +15,9 @@ pipeline {
                     if [ ! -d "venv" ]; then
                         python3 -m venv venv
                     fi
-                    bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest"
+                    venv/bin/python -m pip install --upgrade pip
+                    venv/bin/python -m pip install flask requests pytest
+                    // bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest"
                 '''
             }
         }
@@ -30,7 +32,8 @@ pipeline {
                     sudo -n fuser -k 5000/tcp || true
 
                     echo "Starting Flask server..."
-                    nohup bash -c "source venv/bin/activate && exec gunicorn -w 4 -b 0.0.0.0:5000 app:app" > logs/flask.log 2>&1 &
+                    venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/flask.log 2>&1 &
+                    // nohup bash -c "source venv/bin/activate && exec gunicorn -w 4 -b 0.0.0.0:5000 app:app" > logs/flask.log 2>&1 &
 
                     sleep 5  # Give it time to initialize
 
@@ -47,7 +50,8 @@ pipeline {
             steps {
                 sh '''
                     echo "Running Tests..."
-                    bash -c "source venv/bin/activate && pytest test_app.py"
+                    venv/bin/python -m pytest test_app.py
+                    // bash -c "source venv/bin/activate && pytest test_app.py"
                 '''
             }
         }
@@ -64,7 +68,7 @@ pipeline {
     
     post {
         failure {
-            slackSend channel: '#devops-alerts', tokenCredentialId: 'Jenkins-GitHub-Token', message: "❌ Jenkins Build Failed! Check pipeline: ${env.BUILD_URL}"
+            slackSend channel: '#devops-alerts', tokenCredentialId: 'Jenkins-Slack-Token', message: "❌ Jenkins Build Failed! Check pipeline: ${env.BUILD_URL}"
         }
     }
 }
