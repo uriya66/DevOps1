@@ -25,12 +25,13 @@ pipeline {
             steps {
                 sh '''
                     echo "Stopping any existing Flask server..."
-                    sudo pkill -9 -f "gunicorn" || true
+                    sudo -n pkill -9 -f "gunicorn" || true
 
                     echo "Ensuring port 5000 is free..."
                     sudo -n fuser -k 5000/tcp || true
 
                     echo "Starting Flask server..."
+                    mkdir -p logs
                     venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/flask.log 2>&1 &
                     
                     sleep 5  # Give it time to initialize
