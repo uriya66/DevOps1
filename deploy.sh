@@ -28,7 +28,10 @@ pip install flask gunicorn requests pytest --break-system-packages
 # 📂 Ensure log directory exists
 mkdir -p logs
 
-# 🚀 Start the Flask application using Gunicorn with multiple workers
+# 🛠 Add ~/.local/bin to PATH (Fix Gunicorn issue)
+export PATH=$HOME/.local/bin:$PATH
+
+# 🚀 Start the Flask application using Gunicorn
 echo "🚀 Starting Gunicorn server..."
 nohup gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/gunicorn.log 2>&1 &
 
