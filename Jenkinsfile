@@ -17,7 +17,7 @@ pipeline {
                     if [ ! -d "venv" ]; then
                         python3 -m venv venv  # Create a virtual environment if not exists
                     fi
-                    bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest"
+                    source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest
                 '''
             }
         }
@@ -50,7 +50,7 @@ pipeline {
                 // Run the test suite using pytest
                 sh '''
                     echo "Running Tests..."
-                    bash -c "source venv/bin/activate && pytest test_app.py"
+                    source venv/bin/activate && pytest test_app.py
                 '''
             }
         }
@@ -63,6 +63,13 @@ pipeline {
                     ./deploy.sh  # Execute deployment script
                 '''
             }
+        }
+    }
+    
+    post {
+        failure {
+            // 📢 Send an alert to the Slack channel if the build fails
+            slackSend channel: '#devops-alerts', message: "❌ Jenkins Build Failed! Check pipeline: ${env.BUILD_URL}"
         }
     }
 }
