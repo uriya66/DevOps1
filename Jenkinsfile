@@ -17,7 +17,6 @@ pipeline {
                     fi
                     venv/bin/python -m pip install --upgrade pip
                     venv/bin/python -m pip install flask requests pytest
-                    // bash -c "source venv/bin/activate && pip install --upgrade pip && pip install flask requests pytest"
                 '''
             }
         }
@@ -33,7 +32,7 @@ pipeline {
 
                     echo "Starting Flask server..."
                     venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/flask.log 2>&1 &
-                    // nohup bash -c "source venv/bin/activate && exec gunicorn -w 4 -b 0.0.0.0:5000 app:app" > logs/flask.log 2>&1 &
+                    
 
                     sleep 5  # Give it time to initialize
 
@@ -51,7 +50,7 @@ pipeline {
                 sh '''
                     echo "Running Tests..."
                     venv/bin/python -m pytest test_app.py
-                    // bash -c "source venv/bin/activate && pytest test_app.py"
+                    
                 '''
             }
         }
@@ -67,8 +66,34 @@ pipeline {
     }
     
     post {
-        failure {
-            slackSend channel: '#devops-alerts', tokenCredentialId: 'Jenkins-Slack-Token', message: "❌ Jenkins Build Failed! Check pipeline: ${env.BUILD_URL}"
+    failure {
+        script {
+            try {
+                slackSend(
+                    teamDomain: 'DevOps',  // שם הצוות ב-Slack (ללא https://)
+                    channel: '#devops-alerts',
+                    tokenCredentialId: 'Jenkins-Slack-Token',
+                    message: "❌ Jenkins Build Failed! Check pipeline: ${env.BUILD_URL}",
+                    color: 'danger'
+                )
+            } catch (Exception e) {
+                echo "⚠️ Slack notification failed: ${e.message}"
+            }
+        }
+    }
+    success {
+        script {
+            try {
+                slackSend(
+                    teamDomain: 'DevOps',
+                    channel: '#devops-alerts',
+                    tokenCredentialId: 'Jenkins-Slack-Token',
+                    message: "✅ Jenkins Build Succeeded! 🎉 Check pipeline: ${env.BUILD_URL}",
+                    color: 'good'
+                )
+            } catch (Exception e) {
+                echo "⚠️ Slack notification failed: ${e.message}"
+            }
         }
     }
 }
