@@ -4,12 +4,14 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                // Cloning the Git repository
                 git branch: 'main', url: 'https://github.com/uriya66/DevOps1.git'
             }
         }
 
         stage('Build') {
             steps {
+                // Setting up a virtual environment and installing dependencies
                 sh '''
                     echo "Setting up virtual environment..."
                     if [ ! -d "venv" ]; then
@@ -23,6 +25,7 @@ pipeline {
 
         stage('Start Server') {
             steps {
+                // Ensuring the server is stopped, then starting the Flask application
                 sh '''
                     echo "Stopping any existing Flask server..."
                     sudo -n pkill -9 -f "gunicorn" || true
@@ -33,8 +36,8 @@ pipeline {
                     echo "Starting Flask server..."
                     mkdir -p logs
                     venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/flask.log 2>&1 &
-                    
-                    sleep 5  # Give it time to initialize
+
+                    sleep 5  # Give the server time to initialize
 
                     echo "Checking if Flask server is running..."
                     if ! curl -s http://127.0.0.1:5000/health; then
@@ -47,6 +50,7 @@ pipeline {
 
         stage('Test') {
             steps {
+                // Running unit tests using pytest
                 sh '''
                     echo "Running Tests..."
                     venv/bin/python -m pytest test_app.py
@@ -56,6 +60,7 @@ pipeline {
 
         stage('Deploy') {
             steps {
+                // Running deployment script
                 sh '''
                     chmod +x deploy.sh
                     ./deploy.sh
@@ -67,33 +72,14 @@ pipeline {
     post {
         always {
             script {
-                def commitId = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
-                def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-                def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                def pipelineUrl = "${env.BUILD_URL}"
-                def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"
-                def duration = "${currentBuild.durationString.replace(' and counting', '')}"
+                // Load external Slack notification script
+                def slack = load 'slack_notifications.groovy'
 
-                def message = """
-                ✅ *Jenkins Build Succeeded!* 🎉
-                *Pipeline:* #${env.BUILD_NUMBER}
-                *Branch:* ${branch}
-                *Commit:* [${commitId}](${commitUrl})
-                *Message:* ${commitMessage}
-                *Duration:* ${duration}
-                *Pipeline Link:* [View Pipeline](${pipelineUrl})
-                """
+                // Retrieve Git commit details and construct the Slack message
+                def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
 
-                try {
-                    slackSend(
-                        channel: '#jenkins-alerts',
-                        tokenCredentialId: 'Jenkins-Slack-Token',
-                        message: message,
-                        color: 'good'
-                    )
-                } catch (Exception e) {
-                    echo "⚠️ Slack notification failed: ${e.message}"
-                }
+                // Send Slack notification
+                slack.sendSlackNotification(message, "good")
             }
         }
     }
