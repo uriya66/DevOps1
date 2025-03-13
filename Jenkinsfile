@@ -69,7 +69,7 @@ pipeline {
             script {
                 try {
                     slackSend(
-                        channel: '#jenkins-alerts',
+                        channel: 'C08J6TVUX5E',
                         tokenCredentialId: 'Jenkins-Slack-Token',
                         message: "❌ Jenkins Build Failed! Check pipeline: ${env.BUILD_URL}",
                         color: 'danger'
@@ -83,7 +83,7 @@ pipeline {
             script {
                 try {
                     slackSend(
-                        channel: '#jenkins-alerts',
+                        channel: 'C08J6TVUX5E',
                         tokenCredentialId: 'Jenkins-Slack-Token',
                         message: "✅ Jenkins Build Succeeded! 🎉 Check pipeline: ${env.BUILD_URL}",
                         color: 'good'
