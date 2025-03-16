@@ -7,29 +7,29 @@ echo "🚀 Deploying application with Gunicorn..."
 if pgrep -f "gunicorn" > /dev/null; then
     echo "🛑 Stopping existing Gunicorn process..."
     pkill -f "gunicorn"
-    sleep 3
+    sleep 3  # Wait for process to stop
 fi
 
 # 📦 Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     echo "📦 Creating virtual environment..."
-    python3 -m venv --system-site-packages venv
+    python3 -m venv venv
 fi
 
-# 🔄 Activate virtual environment and install dependencies
+# 🔄 Activate virtual environment
 echo "🔄 Activating virtual environment..."
 source venv/bin/activate
 
-# ⚠️ Fix for PEP 668 (externally-managed-environment error)
+# 📦 Install required dependencies
 echo "📦 Installing dependencies..."
-pip install --upgrade pip --break-system-packages
-pip install flask gunicorn requests pytest --break-system-packages
+pip install --upgrade pip
+pip install flask gunicorn requests pytest
 
 # 📂 Ensure log directory exists
-mkdir -p logs
+mkdir -p logs  # Create logs directory if it doesn't exist
 
-# 🛠 Add ~/.local/bin to PATH (Fix Gunicorn issue)
-export PATH=$HOME/.local/bin:$PATH
+# 🛠 Add venv binaries to PATH to fix Gunicorn issue
+export PATH=$PWD/venv/bin:$PATH
 
 # 🚀 Start the Flask application using Gunicorn
 echo "🚀 Starting Gunicorn server..."
@@ -43,3 +43,4 @@ if ! pgrep -f "gunicorn" > /dev/null; then
 fi
 
 echo "✅ Application is running with Gunicorn at http://localhost:5000"
+
