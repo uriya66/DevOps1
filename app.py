@@ -1,4 +1,9 @@
-from flask import Flask, render_template, jsonify
+
+from flask import Flask, render_template, jsonify, logging
+
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR) # Prints only errors, not HTTP requests
+
 
 # Initialize the Flask application
 app = Flask(__name__)
