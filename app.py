@@ -19,14 +19,14 @@ def wants_json_response():
 @app.route('/')
 def home():
     if wants_json_response():
-        return jsonify({"page": "home", "message": "Welcome to the home page!"}) # Returns JSON response
+        return jsonify({"page": "home", "message": "Welcome to the home page!"}), 200  # Returns JSON response with HTTP 200
     return render_template('home.html')  # Renders the home.html file from the "templates/" folder
 
 # Health check - returns a JSON response
 @app.route('/health')
 def health_check():
     if wants_json_response():
-        return jsonify({"status": "ok", "message": "Application is running!"}) # Returns JSON response
+        return jsonify({"status": "ok", "message": "Application is running!"}), 200  # Returns JSON response with HTTP 200
     return render_template("health.html")  # Renders the health.html file from the "templates/" folder
     
 # Custom 404 page (returns JSON)
