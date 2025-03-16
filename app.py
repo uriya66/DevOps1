@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify  # Import Flask modules
+from flask import Flask, render_template, jsonify, request  # Import Flask modules
 import logging  # Import Python's built-in logging module
 
 # Configure logging to suppress HTTP request logs
