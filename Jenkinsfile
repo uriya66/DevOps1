@@ -72,14 +72,18 @@ pipeline {
     post {
         always {
             script {
-                // Load external Slack notification script
-                def slack = load 'slack_notifications.groovy'
+                try {
+                    // Load external Slack notification script
+                    def slack = load 'slack_notifications.groovy'
+                    
+                    // Retrieve Git commit details and construct the Slack message
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
 
-                // Retrieve Git commit details and construct the Slack message
-                def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
-
-                // Send Slack notification
-                slack.sendSlackNotification(message, "good")
+                    // Send Slack notification
+                    slack.sendSlackNotification(message, "good")
+                } catch (Exception e) {
+                    echo "⚠️ Error sending Slack notification: ${e.message}"
+                }
             }
         }
     }
