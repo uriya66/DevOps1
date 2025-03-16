@@ -43,4 +43,3 @@ if ! pgrep -f "gunicorn" > /dev/null; then
 fi
 
 echo "✅ Application is running with Gunicorn at http://localhost:5000"
-
