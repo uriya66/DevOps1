@@ -7,33 +7,26 @@ echo "🚀 Deploying application with Gunicorn..."
 if pgrep -f "gunicorn" > /dev/null; then
     echo "🛑 Stopping existing Gunicorn process..."
     pkill -f "gunicorn"
-    sleep 3  # Wait for process to stop
-fi
-
-# 📦 Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    echo "📦 Creating virtual environment..."
-    python3 -m venv venv
+    sleep 3
 fi
 
 # 🔄 Activate virtual environment
 echo "🔄 Activating virtual environment..."
-source venv/bin/activate
+source /var/lib/jenkins/workspace/DevOps1/venv/bin/activate
 
 # 📦 Install required dependencies
-echo "📦 Installing dependencies..."
 pip install --upgrade pip
 pip install flask gunicorn requests pytest
 
 # 📂 Ensure log directory exists
-mkdir -p logs  # Create logs directory if it doesn't exist
+mkdir -p logs
 
-# 🛠 Add venv binaries to PATH to fix Gunicorn issue
-export PATH=$PWD/venv/bin:$PATH
+# 🛠 Add Gunicorn to PATH
+export PATH=/var/lib/jenkins/workspace/DevOps1/venv/bin:$PATH
 
-# 🚀 Start the Flask application using Gunicorn (with full path)
-echo "🚀 Starting Gunicorn server..."
-nohup $PWD/venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/gunicorn.log 2>&1 &
+# 🚀 Start Gunicorn
+echo "🚀 Starting Gunicorn..."
+nohup /var/lib/jenkins/workspace/DevOps1/venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/gunicorn.log 2>&1 &
 
 # 🔍 Verify that the server is running
 sleep 5
