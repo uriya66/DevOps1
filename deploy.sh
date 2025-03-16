@@ -10,23 +10,21 @@ if pgrep -f "gunicorn" > /dev/null; then
     sleep 3
 fi
 
-# 🔄 Activate virtual environment
+# 🔄 Ensure virtual environment is activated correctly
 echo "🔄 Activating virtual environment..."
-source /var/lib/jenkins/workspace/DevOps1/venv/bin/activate
+export VIRTUAL_ENV="/var/lib/jenkins/workspace/DevOps1/venv"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# 📦 Install required dependencies
+# 📦 Install required dependencies inside virtual environment
 pip install --upgrade pip
 pip install flask gunicorn requests pytest
 
 # 📂 Ensure log directory exists
 mkdir -p logs
 
-# 🛠 Add Gunicorn to PATH
-export PATH=/var/lib/jenkins/workspace/DevOps1/venv/bin:$PATH
-
 # 🚀 Start Gunicorn
 echo "🚀 Starting Gunicorn..."
-nohup /var/lib/jenkins/workspace/DevOps1/venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/gunicorn.log 2>&1 &
+nohup gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/gunicorn.log 2>&1 &
 
 # 🔍 Verify that the server is running
 sleep 5
