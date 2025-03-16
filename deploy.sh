@@ -10,7 +10,11 @@ if pgrep -f "gunicorn" > /dev/null; then
     sleep 3
 fi
 
-# 🔄 Ensure virtual environment is activated correctly
+# 🔄 Set correct permissions for venv
+sudo chown -R jenkins:jenkins /var/lib/jenkins/workspace/DevOps1/venv
+sudo chmod -R 755 /var/lib/jenkins/workspace/DevOps1/venv
+
+# 🔄 Activate virtual environment
 echo "🔄 Activating virtual environment..."
 export VIRTUAL_ENV="/var/lib/jenkins/workspace/DevOps1/venv"
 export PATH="$VIRTUAL_ENV/bin:$PATH"
