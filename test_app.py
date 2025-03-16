@@ -3,12 +3,13 @@ import pytest
 
 # 🌍 Define the base URL for the Flask application
 BASE_URL = "http://localhost:5000"
+HEADERS = {"Accept": "application/json"}  # 🔧 Ensure JSON response
 
 def test_health_check():
     """
     ✅ Test the /health endpoint to ensure the application is running correctly.
     """
-    response = requests.get(f"{BASE_URL}/health")  # Send a GET request to /health
+    response = requests.get(f"{BASE_URL}/health", headers=HEADERS)  # Send a GET request with JSON header
     json_data = response.json()  # Parse response as JSON
 
     assert response.status_code == 200  # Ensure the response status is 200 OK
@@ -29,7 +30,7 @@ def test_404_page():
     """
     ❌ Test a non-existing page to verify the custom 404 page is returned.
     """
-    response = requests.get(f"{BASE_URL}/nonexistentpage")  # Request a non-existent page
+    response = requests.get(f"{BASE_URL}/nonexistentpage", headers=HEADERS)  # Request a non-existent page
     json_data = response.json()  # Parse response as JSON
 
     assert response.status_code == 404  # Ensure the response status is 404 Not Found
@@ -40,7 +41,7 @@ def test_api_response_format():
     """
     ✅ Test the response format to ensure it is a valid JSON structure.
     """
-    response = requests.get(f"{BASE_URL}/health")  # Send a GET request to /health
+    response = requests.get(f"{BASE_URL}/health", headers=HEADERS)  # Send a GET request with JSON header
     json_data = response.json()  # Parse response as JSON
 
     assert isinstance(json_data, dict)  # Ensure the response is a dictionary (JSON object)
