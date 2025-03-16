@@ -23,7 +23,7 @@ def test_home_page():
     """
     response = requests.get(BASE_URL)  # Send a GET request to the root endpoint
     assert response.status_code == 200  # Ensure the response status is 200 OK
-    assert "Welcome to My Flask App!" in response.text  # Validate response content
+    assert "🚀 Welcome to My Flask App!" in response.text  # Validate response content
 
 def test_404_page():
     """
