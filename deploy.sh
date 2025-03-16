@@ -31,9 +31,9 @@ mkdir -p logs  # Create logs directory if it doesn't exist
 # 🛠 Add venv binaries to PATH to fix Gunicorn issue
 export PATH=$PWD/venv/bin:$PATH
 
-# 🚀 Start the Flask application using Gunicorn
+# 🚀 Start the Flask application using Gunicorn (with full path)
 echo "🚀 Starting Gunicorn server..."
-nohup gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/gunicorn.log 2>&1 &
+nohup $PWD/venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/gunicorn.log 2>&1 &
 
 # 🔍 Verify that the server is running
 sleep 5
