@@ -12,6 +12,11 @@ def constructSlackMessage(buildNumber, buildUrl) {
         // Retrieve build duration
         def duration = "${currentBuild.durationString.replace(' and counting', '')}"
 
+        // Retrieve the public IP address from the Jenkins environment
+        def jenkinsUrl = buildUrl.split('/job/')[0] // Extract the Jenkins address from the existing message
+        def publicIp = jenkinsUrl.replace("http://", "").replace(":8080", "") // Extract the IP from the Jenkins URL
+        def appUrl = "http://${publicIp}:5000" // Flask address
+        
         // Construct the Slack message
         return """
         ✅ *Jenkins Build Completed!*
@@ -21,6 +26,7 @@ def constructSlackMessage(buildNumber, buildUrl) {
         *Message:* ${commitMessage}
         *Duration:* ${duration}
         *Pipeline Link:* [View Pipeline](${buildUrl})
+        *Application Link:* [Open Flask App](${appUrl})
         """
     } catch (Exception e) {
         echo "⚠️ Failed to construct Slack message: ${e.message}"
