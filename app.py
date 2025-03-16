@@ -8,20 +8,34 @@ log.setLevel(logging.ERROR)  # Only log errors, not HTTP requests
 # Initialize the Flask application
 app = Flask(__name__)
 
+# Function to determine if the client wants JSON or HTML response
+def wants_json_response():
+    """
+    ✅ Determines if the client expects a JSON response based on the 'Accept' header.
+    """
+    return request.headers.get("Accept") == "application/json"
+    
 # Home page - returns an HTML page
 @app.route('/')
 def home():
+    if wants_json_response():
+        return jsonify({"page": "home", "message": "Welcome to the home page!"}), 200  # Returns JSON response with HTTP 200
     return render_template('home.html')  # Renders the home.html file from the "templates/" folder
 
 # Health check - returns a JSON response
 @app.route('/health')
 def health_check():
-    return jsonify({"status": "ok", "message": "Application is running!"}), 200  # Returns JSON response with HTTP 200
-
+    if wants_json_response():
+        return jsonify({"status": "ok", "message": "Application is running!"}), 200  # Returns JSON response with HTTP 200
+    return render_template("health.html")  # Renders the health.html file from the "templates/" folder
+    
 # Custom 404 page (returns JSON)
 @app.errorhandler(404)
 def not_found(e):
-    return jsonify({"error": "404 - Page Not Found"}), 404  # Returns a JSON error message for unknown routes
+    if wants_json_response():
+        return jsonify({"error": "404 - Page Not Found"}), 404  # Returns a JSON error message for unknown routes
+    return render_template('404.html'), 404  # Renders the 404.html file from the "templates/" folder
+
 
 # Run the application on all network interfaces (0.0.0.0) at port 5000
 if __name__ == '__main__':
