@@ -38,7 +38,7 @@ def constructSlackMessage(buildNumber, buildUrl) {
 def sendSlackNotification(String message, String color) {
     try {
         slackSend(
-            channel: '#jenkins-alerts',
+            channel: 'C08J6TVUX5E',
             tokenCredentialId: 'Jenkins-Slack-Token',
             message: message,
             color: color
