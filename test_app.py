@@ -11,7 +11,7 @@ def test_health_check():
     """
     response = requests.get(f"{BASE_URL}/api/health", headers=HEADERS)  # Send GET request
     assert response.status_code == 200  # Ensure HTTP status 200 OK
-    
+
     json_data = response.json()  # Parse response as JSON
     assert "status" in json_data  # Ensure 'status' key exists
     assert json_data["status"] == "ok"  # Verify service status
@@ -24,7 +24,7 @@ def test_home_api():
     """
     response = requests.get(f"{BASE_URL}/api/home", headers=HEADERS)  # Send GET request
     assert response.status_code == 200  # Ensure HTTP status 200 OK
-    
+
     json_data = response.json()  # Parse response as JSON
     assert "page" in json_data  # Ensure 'page' key exists
     assert json_data["page"] == "home"  # Validate 'page' content
@@ -37,7 +37,7 @@ def test_404_page():
     """
     response = requests.get(f"{BASE_URL}/nonexistentpage", headers=HEADERS)  # Request a non-existent page
     assert response.status_code == 404  # Ensure HTTP status 404 Not Found
-    
+
     json_data = response.json()  # Parse response as JSON
     assert "error" in json_data  # Ensure 'error' key exists
     assert json_data["error"] == "404 - Page Not Found"  # Validate error message
@@ -48,7 +48,7 @@ def test_api_test_content():
     """
     response = requests.get(f"{BASE_URL}/api/test-content", headers=HEADERS)  # Send GET request
     assert response.status_code == 200  # Ensure HTTP status 200 OK
-    
+
     json_data = response.json()  # Parse response as JSON
     assert "message" in json_data  # Ensure 'message' key exists
     assert isinstance(json_data["message"], str)  # Ensure 'message' is a string
