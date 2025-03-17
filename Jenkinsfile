@@ -29,7 +29,6 @@ pipeline {
                 script {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"  // Log the branch creation
 
-
                     // Create new branch and push it
                     sh """
                         git checkout -b ${BRANCH_NAME}  # Create a new feature branch
@@ -102,19 +101,24 @@ pipeline {
 
         stage('Merge to Main') {
             when {
-                expression { env.GIT_BRANCH.startsWith("feature-")} // Only merge feature branches back to main
+                expression { env.GIT_BRANCH.startsWith("feature-") } // Only merge feature branches back to main
             }
             steps {
                 script {
-                    echo "Merging ${env.GIT_BRANCH} back to main..." // Print the merge action
+                    echo "Checking if all tests passed before merging..."
+                    if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
+                        echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
 
-                    // Merge only if all previous stages were successful
-                    sh """
-                        git checkout main  # Switch to the main branch
-                        git pull origin main  # Ensure we have the latest main branch before merging
-                        git merge --no-ff ${env.GIT_BRANCH}  # Merge the feature branch into main (no fast-forward)
-                        git push origin main  # Push merged changes to the remote repository
-                    """
+                        // Merge only if all previous stages were successful
+                        sh """
+                            git checkout main  # Switch to the main branch
+                            git pull origin main  # Ensure we have the latest main branch before merging
+                            git merge --no-ff ${env.GIT_BRANCH}  # Merge the feature branch into main (no fast-forward)
+                            git push origin main  # Push merged changes to the remote repository
+                        """
+                    } else {
+                        echo "Tests failed, skipping merge!"
+                    }
                 }
             }
         }
