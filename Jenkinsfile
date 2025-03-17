@@ -26,27 +26,18 @@ pipeline {
 
         stage('Start Server') {
             steps {
-                // Ensuring the server is stopped, then starting the Flask application
                 sh '''
-                    echo "Activating virtual environment..."
-                    . venv/bin/activate  # Activate virtual environment
+                    echo "Stopping existing Flask server..."
+                    sudo systemctl stop gunicorn || true
 
-                    echo "Stopping any existing Flask server..."
-                    sudo pkill -f "gunicorn" || true  # Kill any running Gunicorn processes
-                    sudo pkill -9 -f "gunicorn" || true  # Force kill if necessary
+                    echo "Starting Gunicorn service..."
+                    sudo systemctl start gunicorn
 
-                    echo "Ensuring port 5000 is free..."
-                    sudo fuser -k 5000/tcp || true  # Free port 5000 if occupied
+                    sleep 5  # Allow time for server to start
 
-                    echo "Starting Flask server..."
-                    mkdir -p logs  # Ensure logs directory exists
-                    venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 app:app > logs/flask.log 2>&1 &  # Start Gunicorn in the background
-
-                    sleep 5  # Allow the server time to initialize
-
-                    echo "Checking if Flask server is running..."
-                    if ! curl -s http://127.0.0.1:5000/health; then
-                        echo "Flask server failed to start!"
+                    echo "Checking if Gunicorn is running..."
+                    if ! systemctl is-active --quiet gunicorn; then
+                        echo "Gunicorn service failed to start!"
                         exit 1
                     fi
                 '''
