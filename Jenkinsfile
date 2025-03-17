@@ -18,8 +18,8 @@ pipeline {
                         python3 -m venv venv  # Create a virtual environment if it does not exist
                     fi
                     . venv/bin/activate  # Activate virtual environment
-                    venv/bin/python -m pip install --upgrade pip  # Upgrade pip
-                    venv/bin/python -m pip install flask requests pytest  # Install required dependencies
+                    venv/bin/python -m pip install --upgrade pip --break-system-packages  # Upgrade pip with permission override
+                    venv/bin/python -m pip install flask requests pytest --break-system-packages  # Install dependencies
                 '''
             }
         }
@@ -28,10 +28,10 @@ pipeline {
             steps {
                 sh '''
                     echo "Stopping existing Flask server..."
-                    sudo systemctl stop gunicorn || true
+                    sudo -n systemctl stop gunicorn || true  # Stop Gunicorn without password prompt
 
                     echo "Starting Gunicorn service..."
-                    sudo systemctl start gunicorn
+                    sudo -n systemctl start gunicorn  # Start Gunicorn without password prompt
 
                     sleep 5  # Allow time for server to start
 

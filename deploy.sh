@@ -9,12 +9,12 @@ echo "Activating virtual environment..."
 
 # Stop existing Gunicorn service
 echo "Stopping existing Gunicorn service..."
-sudo systemctl stop gunicorn || true
+sudo -n systemctl stop gunicorn || true  # Stop Gunicorn without requiring a password
 
 # Install required dependencies inside the virtual environment
 echo "Installing dependencies..."
-pip install --upgrade pip  # Upgrade pip
-pip install flask gunicorn requests pytest  # Install necessary dependencies
+pip install --upgrade pip --break-system-packages  # Upgrade pip
+pip install flask gunicorn requests pytest --break-system-packages  # Install necessary dependencies
 
 # Ensure log directory exists
 echo "Creating logs directory if it doesn't exist..."
@@ -22,13 +22,13 @@ mkdir -p logs  # Ensure logs directory is created
 
 # Reload systemd and restart Gunicorn
 echo "Reloading systemd daemon..."
-sudo systemctl daemon-reload
+sudo -n systemctl daemon-reload  # Reload systemd without password
 
 echo "Restarting Gunicorn service..."
-sudo systemctl start gunicorn  # Start Gunicorn
+sudo -n systemctl start gunicorn  # Start Gunicorn without password
 
 echo "Enabling Gunicorn service to start on boot..."
-sudo systemctl enable gunicorn  # Ensure Gunicorn starts on reboot
+sudo -n systemctl enable gunicorn  # Ensure Gunicorn starts on reboot
 
 # Verify that the server is running
 sleep 5
