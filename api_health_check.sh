@@ -1,9 +1,9 @@
 #!/bin/bash
-# API health check script to verify that the Flask server is running correctly
+# API health check script to verify that the Flask API server is running correctly
 
 set -e  # Stop script if any command fails
 
-API_URL="http://localhost:5000/health"
+API_URL="http://localhost:5000/api/health"
 
 echo "Checking if Flask API is running..."
 

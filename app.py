@@ -1,9 +1,9 @@
-from flask import Flask, jsonify, request, render_template  # Import Flask modules
-import logging  # Import Python's built-in logging module
+from flask import Flask, jsonify, request, render_template
+import logging
 
 # Configure logging to suppress HTTP request logs
-log = logging.getLogger('werkzeug')  # Get Flask's built-in logger
-log.setLevel(logging.ERROR)  # Only log errors, not HTTP requests
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -35,6 +35,20 @@ def health_check():
         return jsonify({"status": "ok", "message": "Application is running!"}), 200
     return render_template("health.html")  # Render the health.html file from the "templates/" folder for browser users
 
+@app.route('/api/health')
+def api_health_check():
+    """
+    API Health check - Returns JSON response.
+    """
+    return jsonify({"status": "ok", "message": "API is running successfully!"}), 200
+
+@app.route('/api/home')
+def api_home():
+    """
+    API Home page - Returns JSON response.
+    """
+    return jsonify({"page": "home", "message": "Welcome to My Flask API!"}), 200
+
 @app.route('/api/test-content')
 def test_content():
     """
@@ -50,7 +64,6 @@ def not_found(e):
     if wants_json_response():
         return jsonify({"error": "404 - Page Not Found"}), 404
     return render_template('404.html'), 404  # Render 404 page for browser users
-
 
 if __name__ == '__main__':
     # Run Flask application on all network interfaces (0.0.0.0) at port 5000
