@@ -20,6 +20,9 @@ pip install flask gunicorn requests pytest --break-system-packages  # Install ne
 echo "Creating logs directory if it doesn't exist..."
 mkdir -p logs  # Ensure logs directory is created
 
+# Set Jenkins user environment (Fix sudo issue)
+export SUDO_USER=jenkins
+
 # Reload systemd and restart Gunicorn
 echo "Reloading systemd daemon..."
 sudo -n systemctl daemon-reload  # Reload systemd without password
@@ -38,4 +41,3 @@ if ! systemctl is-active --quiet gunicorn; then
 fi
 
 echo "Application is running with Gunicorn at http://localhost:5000"
-
