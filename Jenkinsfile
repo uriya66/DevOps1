@@ -3,29 +3,29 @@ pipeline {
 
     environment {
         REPO_URL = 'https://github.com/uriya66/DevOps1.git' // GitHub repository URL
-        BRANCH = '*/feature-*'  // Run on any feature branch
+        BRANCH = "feature-${env.BUILD_NUMBER}" // Generate a new branch per build
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Clone the Git repository from the specified branch
-                git branch: "${BRANCH}", url: "${REPO_URL}"
+                // Clone the repository and switch to the main branch
+                git branch: "main", url: "${REPO_URL}"
             }
         }
 
         stage('Create Feature Branch') {
             when {
-                branch 'main'  // This stage runs only if we're on main branch
+                branch 'main'  // This stage runs only if we're on the main branch
             }
             steps {
                 script {
-                    def newBranch = "feature-${env.BUILD_NUMBER}" // Generate a unique feature branch name
+                    def newBranch = "feature-${env.BUILD_NUMBER}" // Generate a feature branch name
                     echo "Creating new feature branch: ${newBranch}"
-                    
+
                     sh """
-                        git checkout -b ${newBranch}
-                        git push origin ${newBranch}
+                        git checkout -b ${newBranch}  # Create new feature branch
+                        git push origin ${newBranch}  # Push the new branch to remote
                     """
                 }
             }
@@ -95,14 +95,17 @@ pipeline {
 
         stage('Merge to Main') {
             when {
-                branch 'feature-*' // Run only on feature branches
+                branch "feature-${env.BUILD_NUMBER}" // Run only on dynamically created feature branches
             }
             steps {
-                sh """
-                    git checkout main
-                    git merge --no-ff \$(git rev-parse --abbrev-ref HEAD)
-                    git push origin main
-                """
+                script {
+                    echo "Merging feature branch back to main..."
+                    sh """
+                        git checkout main  # Switch to the main branch
+                        git merge --no-ff feature-${env.BUILD_NUMBER}  # Merge changes without fast-forward
+                        git push origin main  # Push merged changes
+                    """
+                }
             }
         }
     }
@@ -126,3 +129,4 @@ pipeline {
         }
     }
 }
+
