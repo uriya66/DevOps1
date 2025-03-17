@@ -1,24 +1,29 @@
 pipeline {
-    agent any
+    agent any  // Run on any available agent
+
+    environment {
+        REPO_URL = 'https://github.com/uriya66/DevOps1.git'
+        BRANCH = 'main'
+    }
 
     stages {
         stage('Checkout') {
             steps {
-                // Cloning the Git repository
-                git branch: 'main', url: 'https://github.com/uriya66/DevOps1.git'
+                // Clone the Git repository
+                git branch: "${BRANCH}", url: "${REPO_URL}"
             }
         }
 
         stage('Build') {
             steps {
-                // Setting up a virtual environment and installing dependencies
+                // Setup Python virtual environment and install dependencies
                 sh '''
-                    echo "Setting up virtual environment..."
+                    echo "🔧 Setting up virtual environment..."
                     if [ ! -d "venv" ]; then
-                        python3 -m venv venv  # Create a virtual environment if it does not exist
+                        python3 -m venv venv  # Create virtual environment if not exists
                     fi
                     . venv/bin/activate  # Activate virtual environment
-                    venv/bin/python -m pip install --upgrade pip --break-system-packages  # Upgrade pip with permission override
+                    venv/bin/python -m pip install --upgrade pip --break-system-packages  # Upgrade pip
                     venv/bin/python -m pip install flask requests pytest --break-system-packages  # Install dependencies
                 '''
             }
@@ -27,17 +32,17 @@ pipeline {
         stage('Start Server') {
             steps {
                 sh '''
-                    echo "Stopping existing Flask server..."
-                    sudo -n systemctl stop gunicorn || true  # Stop Gunicorn without password prompt
+                    echo "🛑 Stopping existing Flask server..."
+                    sudo -n systemctl stop gunicorn || true  # Stop Gunicorn if running
 
-                    echo "Starting Gunicorn service..."
-                    sudo -n systemctl start gunicorn  # Start Gunicorn without password prompt
+                    echo "🚀 Starting Gunicorn service..."
+                    sudo -n systemctl start gunicorn  # Start Gunicorn service
 
-                    sleep 5  # Allow time for server to start
+                    sleep 5  # Wait for the server to start
 
-                    echo "Checking if Gunicorn is running..."
+                    echo "🔍 Verifying Gunicorn status..."
                     if ! systemctl is-active --quiet gunicorn; then
-                        echo "Gunicorn service failed to start!"
+                        echo "❌ Gunicorn service failed to start!"
                         exit 1
                     fi
                 '''
@@ -46,22 +51,22 @@ pipeline {
 
         stage('Test') {
             steps {
-                // Running unit tests using pytest
+                // Run unit tests using pytest
                 sh '''
-                    echo "Running Tests..."
+                    echo "🧪 Running Tests..."
                     . venv/bin/activate  # Activate virtual environment
-                    venv/bin/python -m pytest test_app.py  # Run tests
+                    venv/bin/python -m pytest test_app.py  # Run pytest
                 '''
             }
         }
 
         stage('Deploy') {
             steps {
-                // Running deployment script
+                // Execute deployment script
                 sh '''
                     chmod +x deploy.sh  # Ensure deploy.sh is executable
                     . venv/bin/activate  # Activate virtual environment
-                    ./deploy.sh  # Execute deployment script
+                    ./deploy.sh  # Run deployment script
                 '''
             }
         }
@@ -73,16 +78,17 @@ pipeline {
                 try {
                     // Load external Slack notification script
                     def slack = load 'slack_notifications.groovy'
-                    
-                    // Retrieve Git commit details and construct the Slack message
+
+                    // Construct Slack message with build details
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
 
                     // Send Slack notification
                     slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}"
+                    echo "⚠️ Error sending Slack notification: ${e.message}"
                 }
             }
         }
     }
 }
+

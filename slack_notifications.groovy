@@ -1,4 +1,5 @@
 // Retrieves Git commit details and constructs a formatted Slack message
+// Function to construct Slack message with Git details
 def constructSlackMessage(buildNumber, buildUrl) {
     try {
         // Retrieve commit ID
@@ -44,7 +45,7 @@ def sendSlackNotification(String message, String color) {
             color: color
         )
     } catch (Exception e) {
-        echo "⚠️ Slack notification failed: ${e.message}"
+        echo "ERROR: Slack notification failed: ${e.message}"
     }
 }
 

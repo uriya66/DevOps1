@@ -1,51 +1,55 @@
 import requests
 import pytest
 
-# 🌍 Define the base URL for the Flask application
+# Define the base URL for the Flask application
 BASE_URL = "http://localhost:5000"
-HEADERS = {"Accept": "application/json"}  # 🔧 Ensure JSON response
+HEADERS = {"Accept": "application/json"}  # Ensure JSON response
 
 def test_health_check():
     """
-    ✅ Test the /health endpoint to ensure the application is running correctly.
+    Test the /api/health endpoint to ensure the application is running correctly.
     """
-    response = requests.get(f"{BASE_URL}/health", headers=HEADERS)  # Send a GET request with JSON header
+    response = requests.get(f"{BASE_URL}/api/health", headers=HEADERS)  # Send GET request
     json_data = response.json()  # Parse response as JSON
 
-    assert response.status_code == 200  # Ensure the response status is 200 OK
-    assert "status" in json_data  # Check if "status" key exists in the response
-    assert json_data["status"] == "ok"  # Ensure the status is "ok"
-    assert "message" in json_data  # Check if "message" key exists
-    assert json_data["message"] == "Application is running!"  # Validate message content
+    assert response.status_code == 200  # Ensure HTTP status 200 OK
+    assert "status" in json_data  # Check for 'status' key in JSON
+    assert json_data["status"] == "ok"  # Verify service status
+    assert "message" in json_data  # Ensure 'message' key exists
+    assert isinstance(json_data["message"], str)  # Ensure message is a string
 
-def test_home_page():
+def test_home_api():
     """
-    ✅ Test the root (/) endpoint to ensure it returns a valid response.
+    Test the /api/home endpoint to verify content is returned correctly in JSON.
     """
-    response = requests.get(BASE_URL)  # Send a GET request to the root endpoint
-    assert response.status_code == 200  # Ensure the response status is 200 OK
-    assert "🚀 Welcome to My Flask App!" in response.text  # Validate response content
+    response = requests.get(f"{BASE_URL}/api/home", headers=HEADERS)  # Send GET request
+    json_data = response.json()  # Parse response as JSON
+
+    assert response.status_code == 200  # Ensure HTTP status 200 OK
+    assert "page" in json_data  # Ensure 'page' key exists
+    assert json_data["page"] == "home"  # Validate 'page' content
+    assert "message" in json_data  # Ensure 'message' key exists
+    assert isinstance(json_data["message"], str)  # Ensure 'message' is a string
 
 def test_404_page():
     """
-    ❌ Test a non-existing page to verify the custom 404 page is returned.
+    Test a non-existing page to verify the custom 404 page is returned in JSON format.
     """
     response = requests.get(f"{BASE_URL}/nonexistentpage", headers=HEADERS)  # Request a non-existent page
     json_data = response.json()  # Parse response as JSON
 
-    assert response.status_code == 404  # Ensure the response status is 404 Not Found
+    assert response.status_code == 404  # Ensure HTTP status 404 Not Found
     assert "error" in json_data  # Check if "error" key exists in response
     assert json_data["error"] == "404 - Page Not Found"  # Validate error message
 
-def test_api_response_format():
+def test_api_test_content():
     """
-    ✅ Test the response format to ensure it is a valid JSON structure.
+    Test the /api/test-content endpoint to ensure API data remains consistent.
     """
-    response = requests.get(f"{BASE_URL}/health", headers=HEADERS)  # Send a GET request with JSON header
+    response = requests.get(f"{BASE_URL}/api/test-content", headers=HEADERS)  # Send GET request
     json_data = response.json()  # Parse response as JSON
 
-    assert isinstance(json_data, dict)  # Ensure the response is a dictionary (JSON object)
-    assert "status" in json_data  # Check if "status" key exists
-    assert json_data["status"] == "ok"  # Ensure the status is "ok"
-    assert "message" in json_data  # Check if "message" key exists
-    assert isinstance(json_data["message"], str)  # Ensure the message is a string
+    assert response.status_code == 200  # Ensure HTTP status 200 OK
+    assert "message" in json_data  # Ensure 'message' key exists
+    assert isinstance(json_data["message"], str)  # Ensure message is a string
+

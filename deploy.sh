@@ -33,11 +33,11 @@ sudo -n systemctl start gunicorn  # Start Gunicorn without password
 echo "Enabling Gunicorn service to start on boot..."
 sudo -n systemctl enable gunicorn  # Ensure Gunicorn starts on reboot
 
-# Verify that the server is running
+# Verify that the server status
 sleep 5
 if ! systemctl is-active --quiet gunicorn; then
-    echo "Gunicorn service failed to start!"
+    echo "ERROR: Gunicorn service failed to start!"
     exit 1
 fi
 
-echo "Application is running with Gunicorn at http://localhost:5000"
+echo "Deployment completed successfully. Application is running at http://localhost:5000"
