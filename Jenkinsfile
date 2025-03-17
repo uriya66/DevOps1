@@ -100,7 +100,7 @@ pipeline {
             steps {
                 sh """
                     git checkout main
-                    git merge --no-ff $(git rev-parse --abbrev-ref HEAD)
+                    git merge --no-ff \$(git rev-parse --abbrev-ref HEAD)
                     git push origin main
                 """
             }
