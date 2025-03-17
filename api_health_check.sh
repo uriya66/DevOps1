@@ -3,7 +3,7 @@
 
 set -e  # Stop script if any command fails
 
-API_URL="http://localhost:5000/api/health"
+API_URL="http://localhost:5000/health"
 
 echo "Checking if Flask API is running..."
 
