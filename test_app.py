@@ -1,5 +1,6 @@
 import requests  # Import the requests library to send HTTP requests
 import pytest  # Import pytest for writing test cases
+import os  # Import os for system checks
 
 # Define the base URL for the Flask application
 BASE_URL = "http://localhost:5000"
@@ -15,67 +16,35 @@ def test_health_check():
     - The response JSON contains expected keys.
     - The status of the service is "ok".
     """
-    # Send a GET request to the /health endpoint
     response = requests.get(f"{BASE_URL}/health", headers=HEADERS)
-
-    # Parse the response as JSON
     json_data = response.json()
-
-    # Validate HTTP status
-    assert response.status_code == 200, f"Expected status 200, got {response.status_code}"
-
-    # Validate that the response JSON contains the expected keys
-    assert "status" in json_data, "Missing 'status' key in response JSON"
-    assert json_data["status"] == "ok", f"Unexpected API status: {json_data['status']}"
-
-    # Validate that 'message' exists and is a string
-    assert "message" in json_data, "Missing 'message' key in response JSON"
-    assert isinstance(json_data["message"], str), "Expected 'message' to be a string"
+    assert response.status_code == 200
+    assert "status" in json_data
+    assert json_data["status"] == "ok"
+    assert "message" in json_data
+    assert isinstance(json_data["message"], str)
 
 def test_home_api():
     """
     Test the root (/) endpoint to verify it returns a valid JSON response.
-    This test checks:
-    - The API returns HTTP 200.
-    - The response contains the correct page name ("home").
-    - The response includes a valid message.
     """
-    # Send a GET request to the home ("/") endpoint
     response = requests.get(BASE_URL, headers=HEADERS)
-
-    # Parse the response as JSON
     json_data = response.json()
-
-    # Validate HTTP status
-    assert response.status_code == 200, f"Expected status 200, got {response.status_code}"
-
-    # Validate that the response JSON contains the expected keys
-    assert "page" in json_data, "Missing 'page' key in response JSON"
-    assert json_data["page"] == "home", f"Unexpected page name: {json_data['page']}"
-
-    # Validate that 'message' exists and is a string
-    assert "message" in json_data, "Missing 'message' key in response JSON"
-    assert isinstance(json_data["message"], str), "Expected 'message' to be a string"
+    assert response.status_code == 200
+    assert "page" in json_data
+    assert json_data["page"] == "home"
+    assert "message" in json_data
+    assert isinstance(json_data["message"], str)
 
 def test_404_page():
     """
     Test a non-existing page to verify that the custom 404 JSON response is returned.
-    This test ensures:
-    - A non-existent endpoint returns HTTP 404.
-    - The response JSON contains the correct error message.
     """
-    # Send a GET request to a non-existing page
     response = requests.get(f"{BASE_URL}/nonexistentpage", headers=HEADERS)
-
-    # Parse the response as JSON
     json_data = response.json()
-
-    # Validate HTTP status
-    assert response.status_code == 404, f"Expected status 404, got {response.status_code}"
-
-    # Validate that the response JSON contains the expected error message
-    assert "error" in json_data, "Missing 'error' key in response JSON"
-    assert json_data["error"] == "404 - Page Not Found", f"Unexpected error message: {json_data['error']}"
+    assert response.status_code == 404
+    assert "error" in json_data
+    assert json_data["error"] == "404 - Page Not Found"
 
 def test_api_test_content():
     """
@@ -84,16 +53,44 @@ def test_api_test_content():
     - The API responds with HTTP 200.
     - The response includes a 'message' key with a string value.
     """
-    # Send a GET request to the /api/test-content endpoint
     response = requests.get(f"{BASE_URL}/api/test-content", headers=HEADERS)
-
-    # Parse the response as JSON
     json_data = response.json()
+    assert response.status_code == 200
+    assert "message" in json_data
+    assert isinstance(json_data["message"], str)
 
-    # Validate HTTP status
-    assert response.status_code == 200, f"Expected status 200, got {response.status_code}"
+def test_gunicorn_running():
+    """
+    Ensure that Gunicorn is actually running by checking process existence.
+    This test verifies:
+    - The Gunicorn process is running on the system.
+    - If Gunicorn is not running, the test fails.
+    """
+    result = os.system("pgrep gunicorn > /dev/null")
+    assert result == 0, "Gunicorn is not running!"
 
-    # Validate that the response JSON contains the expected 'message' key
-    assert "message" in json_data, "Missing 'message' key in response JSON"
-    assert isinstance(json_data["message"], str), "Expected 'message' to be a string"
+def test_api_health_check():
+    """
+    Test the /api/health endpoint to validate it returns a correct response.
+    This test verifies:
+    - The API responds with HTTP 200.
+    - The response JSON contains expected keys.
+    - The status of the service is "ok".
+    """
+    response = requests.get(f"{BASE_URL}/api/health", headers=HEADERS)
+    json_data = response.json()
+    assert response.status_code == 200
+    assert "status" in json_data
+    assert json_data["status"] == "ok"
+    assert "message" in json_data
+    assert isinstance(json_data["message"], str)
+
+def test_invalid_method():
+    """
+    Test an invalid method request (POST instead of GET) to ensure proper handling.
+    This test verifies:
+    - A POST request to a GET-only endpoint should return 400 or 405.
+    """
+    response = requests.post(f"{BASE_URL}/health", headers=HEADERS)
+    assert response.status_code in [400, 405], "Expected 400 or 405 for invalid method request"
 

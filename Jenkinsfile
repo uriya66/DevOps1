@@ -1,9 +1,9 @@
 pipeline {
-    agent any  // Run on any available Jenkins agent
+    agent any // Run on any available Jenkins agent
 
     environment {
-        REPO_URL = 'https://github.com/uriya66/DevOps1.git'
-        BRANCH = 'main'
+        REPO_URL = 'https://github.com/uriya66/DevOps1.git' // GitHub repository URL
+        BRANCH = '*/feature-*'  // Run on any feature branch
     }
 
     stages {
@@ -14,10 +14,27 @@ pipeline {
             }
         }
 
+        stage('Create Feature Branch') {
+            when {
+                branch 'main'  // This stage runs only if we're on main branch
+            }
+            steps {
+                script {
+                    def newBranch = "feature-${env.BUILD_NUMBER}" // Generate a unique feature branch name
+                    echo "Creating new feature branch: ${newBranch}"
+                    
+                    sh """
+                        git checkout -b ${newBranch}
+                        git push origin ${newBranch}
+                    """
+                }
+            }
+        }
+
         stage('Build') {
             steps {
                 // Set up a Python virtual environment and install dependencies
-                sh '''
+                sh """
                     set -e  # Stop script on error
                     echo "Setting up virtual environment..."
                     if [ ! -d "venv" ]; then
@@ -25,16 +42,16 @@ pipeline {
                     fi
                     . venv/bin/activate
                     venv/bin/python -m pip install --upgrade pip --break-system-packages
-                    venv/bin/python -m pip install flask requests pytest --break-system-packages
-                '''
+                    venv/bin/python -m pip install flask requests pytest gunicorn --break-system-packages
+                """
             }
         }
 
-        stage('Start Server') {
+        stage('Start Gunicorn') {
             steps {
-                sh '''
+                sh """
                     set -e
-                    echo "Stopping existing Flask server..."
+                    echo "Stopping existing Gunicorn service..."
                     if systemctl is-active --quiet gunicorn; then
                         sudo -n systemctl stop gunicorn
                     fi
@@ -49,42 +66,43 @@ pipeline {
                         echo "ERROR: Gunicorn service failed to start!"
                         exit 1
                     fi
-                '''
+                """
             }
         }
 
         stage('API Health Check') {
             steps {
                 // Run the API health check script
-                sh '''
+                sh """
                     set -e
                     chmod +x api_health_check.sh  # Ensure script is executable
                     ./api_health_check.sh  # Run the health check script
-                '''
+                """
             }
         }
 
         stage('Test') {
             steps {
                 // Run unit tests using pytest
-                sh '''
+                sh """
                     set -e
                     echo "Running Tests..."
                     . venv/bin/activate
                     venv/bin/python -m pytest test_app.py
-                '''
+                """
             }
         }
 
-        stage('Deploy') {
+        stage('Merge to Main') {
+            when {
+                branch 'feature-*' // Run only on feature branches
+            }
             steps {
-                // Execute deployment script
-                sh '''
-                    set -e
-                    chmod +x deploy.sh
-                    . venv/bin/activate
-                    ./deploy.sh
-                '''
+                sh """
+                    git checkout main
+                    git merge --no-ff $(git rev-parse --abbrev-ref HEAD)
+                    git push origin main
+                """
             }
         }
     }
@@ -108,4 +126,3 @@ pipeline {
         }
     }
 }
-

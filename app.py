@@ -11,7 +11,7 @@ app = Flask(__name__)
 def wants_json_response():
     """
     Determines if the client expects a JSON response based on the 'Accept' header.
-    
+
     Returns:
         bool: True if client expects JSON, otherwise False.
     """
@@ -33,7 +33,7 @@ def health_check():
     """
     if wants_json_response():
         return jsonify({"status": "ok", "message": "Application is running!"}), 200
-    return render_template("health.html")  # Render the health.html file from the "templates/" folder for browser users
+    return render_template("health.html")  # Render the health.html file for browser users
 
 @app.route('/api/health')
 def api_health_check():
@@ -65,7 +65,10 @@ def not_found(e):
         return jsonify({"error": "404 - Page Not Found"}), 404
     return render_template('404.html'), 404  # Render 404 page for browser users
 
+
+# Gunicorn will handle execution, so no need for app.run()
+"""
 if __name__ == '__main__':
     # Run Flask application on all network interfaces (0.0.0.0) at port 5000
     app.run(host='0.0.0.0', port=5000, debug=True)
-
+"""
