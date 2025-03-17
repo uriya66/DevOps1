@@ -3,29 +3,29 @@ pipeline {
 
     environment {
         REPO_URL = 'https://github.com/uriya66/DevOps1.git' // GitHub repository URL
-        BRANCH = "feature-${env.BUILD_NUMBER}" // Generate a new branch per build
+        BRANCH = "feature-${env.BUILD_NUMBER}" // Generate a unique feature branch per build
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Clone the repository and switch to the main branch
-                git branch: "main", url: "${REPO_URL}"
+                // Checkout the repository using the current branch running the build
+                git branch: "${env.GIT_BRANCH}", url: "${REPO_URL}"
             }
         }
 
         stage('Create Feature Branch') {
             when {
-                branch 'main'  // This stage runs only if we're on the main branch
+                expression { env.GIT_BRANCH == 'main' } // Only create a new feature branch if running on main
             }
             steps {
                 script {
-                    def newBranch = "feature-${env.BUILD_NUMBER}" // Generate a feature branch name
+                    def newBranch = "feature-${env.BUILD_NUMBER}" // Generate a unique feature branch name
                     echo "Creating new feature branch: ${newBranch}"
 
                     sh """
-                        git checkout -b ${newBranch}  # Create new feature branch
-                        git push origin ${newBranch}  # Push the new branch to remote
+                        git checkout -b ${newBranch}  # Create the new feature branch
+                        git push origin ${newBranch}  # Push the new branch to remote repository
                     """
                 }
             }
@@ -33,12 +33,12 @@ pipeline {
 
         stage('Build') {
             steps {
-                // Set up a Python virtual environment and install dependencies
+                // Set up a Python virtual environment and install required dependencies
                 sh """
                     set -e  # Stop script on error
                     echo "Setting up virtual environment..."
                     if [ ! -d "venv" ]; then
-                        python3 -m venv venv
+                        python3 -m venv venv  # Create virtual environment if it doesn't exist
                     fi
                     . venv/bin/activate
                     venv/bin/python -m pip install --upgrade pip --break-system-packages
@@ -53,13 +53,13 @@ pipeline {
                     set -e
                     echo "Stopping existing Gunicorn service..."
                     if systemctl is-active --quiet gunicorn; then
-                        sudo -n systemctl stop gunicorn
+                        sudo -n systemctl stop gunicorn  # Stop Gunicorn if running
                     fi
 
                     echo "Starting Gunicorn service..."
-                    sudo -n systemctl start gunicorn
+                    sudo -n systemctl start gunicorn  # Start Gunicorn service
 
-                    sleep 5  # Wait for the server to start
+                    sleep 5  # Wait for Gunicorn to fully start
 
                     echo "Verifying Gunicorn status..."
                     if ! systemctl is-active --quiet gunicorn; then
@@ -72,18 +72,18 @@ pipeline {
 
         stage('API Health Check') {
             steps {
-                // Run the API health check script
+                // Run the API health check script to ensure the Flask application is running correctly
                 sh """
                     set -e
                     chmod +x api_health_check.sh  # Ensure script is executable
-                    ./api_health_check.sh  # Run the health check script
+                    ./api_health_check.sh  # Execute the health check script
                 """
             }
         }
 
         stage('Test') {
             steps {
-                // Run unit tests using pytest
+                // Run unit tests using pytest to verify API functionality
                 sh """
                     set -e
                     echo "Running Tests..."
@@ -95,15 +95,15 @@ pipeline {
 
         stage('Merge to Main') {
             when {
-                branch "feature-${env.BUILD_NUMBER}" // Run only on dynamically created feature branches
+                expression { env.GIT_BRANCH.startsWith("feature-") } // Merge only feature branches
             }
             steps {
                 script {
                     echo "Merging feature branch back to main..."
                     sh """
                         git checkout main  # Switch to the main branch
-                        git merge --no-ff feature-${env.BUILD_NUMBER}  # Merge changes without fast-forward
-                        git push origin main  # Push merged changes
+                        git merge --no-ff ${env.GIT_BRANCH}  # Merge feature branch changes
+                        git push origin main  # Push merged changes to remote repository
                     """
                 }
             }
@@ -114,10 +114,10 @@ pipeline {
         always {
             script {
                 try {
-                    // Load external Slack notification script
+                    // Load external Slack notification script to notify about the pipeline result
                     def slack = load 'slack_notifications.groovy'
 
-                    // Construct Slack message with build details
+                    // Construct Slack message containing build details
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
 
                     // Send Slack notification
