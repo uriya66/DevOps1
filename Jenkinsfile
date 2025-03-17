@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         REPO_URL = 'https://github.com/uriya66/DevOps1.git' // Define the GitHub repository URL
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create a unique feature branch per build
     }
 
     stages {
@@ -22,22 +23,20 @@ pipeline {
 
         stage('Create Feature Branch') {
             when {
-                expression { env.GIT_BRANCH == 'main' } // Execute only if running on the main branch
+                expression { env.GIT_BRANCH == 'main' }  // Only create a new branch if running on main
             }
             steps {
                 script {
-                    // Generate a unique feature branch name based on the Jenkins build number
-                    def newBranch = "feature-${env.BUILD_NUMBER}"
-                    echo "Creating a new feature branch: ${newBranch}" // Log the branch creation
+                    echo "Creating a new feature branch: ${BRANCH_NAME}"  // Log the branch creation
 
-                    // Create a new branch and push it to the remote repository
+
+                    // Create new branch and push it
                     sh """
-                        git checkout -b ${newBranch}  # Create a new feature branch
-                        git push origin ${newBranch}  # Push the branch to the remote repository
+                        git checkout -b ${BRANCH_NAME}  # Create a new feature branch
+                        git push origin ${BRANCH_NAME}  # Push the branch to the remote repository
                     """
 
-                    // Update the environment variable with the new branch name
-                    env.GIT_BRANCH = newBranch
+                    env.GIT_BRANCH = BRANCH_NAME  // Update the environment variable with the new branch name
                 }
             }
         }
@@ -103,15 +102,16 @@ pipeline {
 
         stage('Merge to Main') {
             when {
-                expression { env.GIT_BRANCH.startsWith("feature-") } // Only merge feature branches back to main
+                expression { env.GIT_BRANCH.startsWith("feature-")} // Only merge feature branches back to main
             }
             steps {
                 script {
                     echo "Merging ${env.GIT_BRANCH} back to main..." // Print the merge action
 
-                    // Checkout the main branch, merge the feature branch, and push the changes
+                    // Merge only if all previous stages were successful
                     sh """
                         git checkout main  # Switch to the main branch
+                        git pull origin main  # Ensure we have the latest main branch before merging
                         git merge --no-ff ${env.GIT_BRANCH}  # Merge the feature branch into main (no fast-forward)
                         git push origin main  # Push merged changes to the remote repository
                     """
@@ -121,6 +121,16 @@ pipeline {
     }
 
     post {
+        success {
+            script {
+                echo "Build & Tests passed. Merging branch automatically."
+            }
+        }
+        failure {
+            script {
+                echo "Build or Tests failed. NOT merging to main."
+            }
+        }
         always {
             script {
                 try {
@@ -130,10 +140,10 @@ pipeline {
                     // Construct Slack message containing build details
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
 
-                    // Send Slack notification with the build status
+                     // Send Slack notification with the build status
                     slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}" // Print error message in case of failure
+                    echo "Error sending Slack notification: ${e.message}"  // Print error message in case of failure
                 }
             }
         }
