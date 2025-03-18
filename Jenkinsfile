@@ -11,7 +11,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out the repository..." // Print message indicating checkout process
-                    git branch: 'main', url: "${REPO_URL}" // Checkout the repository without forcing a branch
+                    git url: "${REPO_URL}" // Checkout the main branch from GitHub
 
                     // Get the current branch name and store it in an environment variable
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
@@ -22,15 +22,20 @@ pipeline {
         }
 
         stage('Create Feature Branch') {
+            when {
+                expression { true }  // Always create a new feature branch regardless of the starting branch
+            }
             steps {
                 script {
-                    echo "Creating a new feature branch: ${BRANCH_NAME}"  // Log the branch creation
+                    echo "Creating a new feature branch based off main: ${BRANCH_NAME}"  // Log the branch creation
+                    // Ensure we are on the main branch as the base before creating the feature branch
+                    sh "git checkout main"  // Switch to main branch as the base
+                    sh "git pull origin main"  // Pull the latest changes from main
 
-                    // Always create a new feature branch, regardless of the current branch
+                    // Create new branch and push it
                     sh """
                         git checkout -b ${BRANCH_NAME}  # Create a new feature branch
                         git push origin ${BRANCH_NAME}  # Push the branch to the remote repository
-                        git checkout ${BRANCH_NAME}  #  Switch to the new feature branch for all subsequent steps
                     """
 
                     env.GIT_BRANCH = BRANCH_NAME  // Update the environment variable with the new branch name
@@ -104,17 +109,14 @@ pipeline {
             steps {
                 script {
                     echo "Checking if all tests passed before merging..."
-                    if (currentBuild.result == 'SUCCESS') {  //  Stronger validation before merging
+                    if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
                         echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
 
+                        // Merge only if all previous stages were successful
                         sh """
                             git checkout main  # Switch to the main branch
                             git pull origin main  # Ensure we have the latest main branch before merging
-
-                            # Check if the merge is safe
-                            git merge --no-ff --no-commit ${env.GIT_BRANCH} || { echo "Merge conflict detected! Aborting merge."; exit 1; }
-
-                            git commit -m "Merging ${env.GIT_BRANCH} into main"
+                            git merge --no-ff ${env.GIT_BRANCH}  # Merge the feature branch into main (no fast-forward)
                             git push origin main  # Push merged changes to the remote repository
                         """
                     } else {
@@ -145,7 +147,7 @@ pipeline {
                     // Construct Slack message containing build details
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
 
-                     // Send Slack notification with the build status
+                    // Send Slack notification with the build status
                     slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
                     echo "Error sending Slack notification: ${e.message}"  // Print error message in case of failure
