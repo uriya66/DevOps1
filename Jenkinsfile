@@ -45,7 +45,7 @@ pipeline {
         stage('Build') {
             steps {
                 sh """
-                    set -e  # Stop execution if any command fails
+                    set -e  # Stop execution if any command fails 
                     echo "Setting up the Python virtual environment..."
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi  # Create virtual environment if not exists
                     . venv/bin/activate  # Activate the virtual environment
