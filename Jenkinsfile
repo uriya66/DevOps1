@@ -11,7 +11,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out the repository..." // Print message indicating checkout process
-                    git url: "${REPO_URL}" // Checkout the main branch from GitHub
+                    git url: "${REPO_URL}", branch: 'main' // Checkout explicitly the main branch
 
                     // Get the current branch name and store it in an environment variable
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
