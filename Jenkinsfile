@@ -11,7 +11,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out the repository..." // Print message indicating checkout process
-                    git url: "${REPO_URL}" // Checkout the main branch from GitHub
+                    git branch: 'main', url: "${REPO_URL}" // Explicitly checkout main branch to avoid errors
 
                     // Get the current branch name and store it in an environment variable
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
@@ -23,7 +23,7 @@ pipeline {
 
         stage('Create Feature Branch') {
             when {
-                expression { !env.GIT_BRANCH.startsWith("feature-") }  // Only create if not already on feature branch
+                expression { env.GIT_BRANCH == 'main' } // Only create a feature branch if running on main
             }
             steps {
                 script {
@@ -78,7 +78,6 @@ pipeline {
 
         stage('API Health Check') {
             steps {
-                // Run the API health check script to ensure the Flask application is running correctly
                 sh """
                     set -e  # Stop execution if any command fails
                     chmod +x api_health_check.sh  # Ensure the script is executable
@@ -89,7 +88,6 @@ pipeline {
 
         stage('Test') {
             steps {
-                // Run unit tests using pytest to validate API functionality
                 sh """
                     set -e  # Stop execution if any command fails
                     echo "Running API tests..."
@@ -109,7 +107,6 @@ pipeline {
                     if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
                         echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
 
-                        // Merge only if all previous stages were successful
                         sh """
                             git checkout main  # Switch to the main branch
                             git pull origin main  # Ensure we have the latest main branch before merging
@@ -138,13 +135,8 @@ pipeline {
         always {
             script {
                 try {
-                    // Load external Slack notification script to notify about the pipeline result
                     def slack = load 'slack_notifications.groovy'
-
-                    // Construct Slack message containing build details
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
-
-                     // Send Slack notification with the build status
                     slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
                     echo "Error sending Slack notification: ${e.message}"  // Print error message in case of failure
