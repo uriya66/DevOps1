@@ -13,8 +13,11 @@ pipeline {
                     echo "Checking out the repository..." // Print message indicating checkout process
                     git branch: 'main', url: "${REPO_URL}" // Explicitly checkout main branch to avoid errors
 
-                    // Get the current branch name and store it in an environment variable
+                    // Get the current branch name and handle 'origin/main' case
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    if (currentBranch == 'origin/main') {
+                        currentBranch = 'main'  // Normalize to 'main'
+                    }
                     env.GIT_BRANCH = currentBranch
                     echo "Current branch: ${env.GIT_BRANCH}" // Print the current branch name
                 }
@@ -23,7 +26,7 @@ pipeline {
 
         stage('Create Feature Branch') {
             when {
-                expression { env.GIT_BRANCH == 'main' } // Only create a feature branch if running on main
+                expression { env.GIT_BRANCH == 'main' } // Ensure we check for normalized 'main'
             }
             steps {
                 script {
@@ -145,3 +148,4 @@ pipeline {
         }
     }
 }
+
