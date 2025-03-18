@@ -25,9 +25,6 @@ pipeline {
         }
 
         stage('Create Feature Branch') {
-            when {
-                expression { env.GIT_BRANCH == 'main' } // Ensure we check for normalized 'main'
-            }
             steps {
                 script {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"  // Log the branch creation
