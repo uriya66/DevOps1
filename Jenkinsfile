@@ -11,7 +11,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out the repository..." // Print message indicating checkout process
-                    git branch: "main", url: "${REPO_URL}" // Checkout the main branch from GitHub
+                    git url: "${REPO_URL}" // Checkout the repository without forcing a branch
 
                     // Get the current branch name and store it in an environment variable
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
@@ -22,17 +22,15 @@ pipeline {
         }
 
         stage('Create Feature Branch') {
-            when {
-                expression { env.GIT_BRANCH == 'main' }  // Only create a new branch if running on main
-            }
             steps {
                 script {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"  // Log the branch creation
 
-                    // Create new branch and push it
+                    // Always create a new feature branch, regardless of the current branch
                     sh """
                         git checkout -b ${BRANCH_NAME}  # Create a new feature branch
                         git push origin ${BRANCH_NAME}  # Push the branch to the remote repository
+                        git checkout ${BRANCH_NAME}  #  Switch to the new feature branch for all subsequent steps
                     """
 
                     env.GIT_BRANCH = BRANCH_NAME  // Update the environment variable with the new branch name
@@ -106,14 +104,17 @@ pipeline {
             steps {
                 script {
                     echo "Checking if all tests passed before merging..."
-                    if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
+                    if (currentBuild.result == 'SUCCESS') {  //  Stronger validation before merging
                         echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
 
-                        // Merge only if all previous stages were successful
                         sh """
                             git checkout main  # Switch to the main branch
                             git pull origin main  # Ensure we have the latest main branch before merging
-                            git merge --no-ff ${env.GIT_BRANCH}  # Merge the feature branch into main (no fast-forward)
+
+                            # Check if the merge is safe
+                            git merge --no-ff --no-commit ${env.GIT_BRANCH} || { echo "Merge conflict detected! Aborting merge."; exit 1; }
+
+                            git commit -m "Merging ${env.GIT_BRANCH} into main"
                             git push origin main  # Push merged changes to the remote repository
                         """
                     } else {
