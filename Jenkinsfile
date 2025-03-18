@@ -11,7 +11,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out the repository..." // Print message indicating checkout process
-                    git url: "${REPO_URL}", branch: 'main' // Checkout explicitly the main branch
+                    git url: "${REPO_URL}" // Checkout the main branch from GitHub
 
                     // Get the current branch name and store it in an environment variable
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
@@ -23,14 +23,11 @@ pipeline {
 
         stage('Create Feature Branch') {
             when {
-                expression { true }  // Always create a new feature branch regardless of the starting branch
+                expression { !env.GIT_BRANCH.startsWith("feature-") }  // Only create if not already on feature branch
             }
             steps {
                 script {
-                    echo "Creating a new feature branch based off main: ${BRANCH_NAME}"  // Log the branch creation
-                    // Ensure we are on the main branch as the base before creating the feature branch
-                    sh "git checkout main"  // Switch to main branch as the base
-                    sh "git pull origin main"  // Pull the latest changes from main
+                    echo "Creating a new feature branch: ${BRANCH_NAME}"  // Log the branch creation
 
                     // Create new branch and push it
                     sh """
@@ -147,7 +144,7 @@ pipeline {
                     // Construct Slack message containing build details
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
 
-                    // Send Slack notification with the build status
+                     // Send Slack notification with the build status
                     slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
                     echo "Error sending Slack notification: ${e.message}"  // Print error message in case of failure
@@ -156,4 +153,3 @@ pipeline {
         }
     }
 }
-
