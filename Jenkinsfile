@@ -42,7 +42,7 @@ pipeline {
                         $class: 'GitSCM',
                         branches: [[name: '*/main']],  // Fetch the main branch
                         userRemoteConfigs: [[
-                            url: 'git@github.com:uriya66/DevOps1.git',  // Use SSH URL for authentication
+                            url: REPO_URL,  // Use SSH URL for authentication
                             credentialsId: 'Jenkins-GitHub-SSH'  // Ensure the correct credentials are used
                         ]]
                     ])
