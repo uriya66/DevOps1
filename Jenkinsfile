@@ -1,25 +1,26 @@
 pipeline {
-    agent any
+    agent any  // Runs the pipeline on any available Jenkins agent
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define the GitHub repository URL
     }
 
     stages {
         stage('Start SSH Agent') {
             steps {
-                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
+                // Start SSH Agent using Jenkins credentials (Ensure 'Jenkins-GitHub-SSH' exists in Jenkins)
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) { 
                     script {
-                        echo "Starting SSH Agent and verifying authentication..."
-                        
-                        // Print SSH_AUTH_SOCK to verify it's set
+                        echo "Starting SSH Agent and verifying authentication."
+
+                        // Print SSH_AUTH_SOCK to confirm it's correctly set
                         sh "echo 'SSH_AUTH_SOCK is: $SSH_AUTH_SOCK'"
 
-                        // Ensure the key is loaded
-                        sh "ssh-add -l || echo 'No SSH keys loaded!'"
+                        // Ensure the SSH key is loaded in the agent
+                        sh "ssh-add -l"
 
-                        // Test SSH connection to GitHub
-                        sh "ssh -T git@github.com || echo 'SSH Connection failed!'"
+                        // Test SSH connection to GitHub without failing on expected GitHub message
+                        sh "ssh -T git@github.com"
                     }
                 }
             }
@@ -28,32 +29,16 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    echo "Checking out the repository..."
+                    echo "Checking out the repository."
+                    // Checkout source code from GitHub repository using SSH authentication
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: '*/main']],
+                        branches: [[name: '*/main']],  // Fetch the main branch
                         userRemoteConfigs: [[
-                            url: 'git@github.com:uriya66/DevOps1.git',
-                            credentialsId: 'Jenkins-GitHub-SSH'
+                            url: 'git@github.com:uriya66/DevOps1.git',  // Use SSH URL for authentication
+                            credentialsId: 'Jenkins-GitHub-SSH'  // Ensure the correct credentials are used
                         ]]
                     ])
-                }
-            }
-        }
-
-        stage('Start SSH Agent & Verify Key') {
-            steps {
-                sshagent(['Jenkins-GitHub-Token']) {
-                    script {
-                        echo "Verifying SSH Agent and Loaded Keys..."
-                        
-                        // Check if the SSH Agent is running and if the key is loaded
-                        sh """
-                            echo "Checking SSH_AUTH_SOCK: \$SSH_AUTH_SOCK"
-                            ssh-add -l || echo "No SSH keys loaded!"
-                            ssh -T git@github.com || echo "SSH Connection failed!"
-                        """
-                    }
                 }
             }
         }
@@ -61,16 +46,18 @@ pipeline {
         stage('Create Feature Branch') {
             steps {
                 script {
+                    // Create a new branch based on the build number
                     def newBranch = "feature-${env.BUILD_NUMBER}"
                     echo "Creating a new feature branch: ${newBranch}"
 
+                    // Use the correct SSH authentication socket to ensure secure Git operations
                     withEnv(["SSH_AUTH_SOCK=${env.HOME}/.ssh/ssh-agent.sock"]) {
                         sh """
-                            git checkout -b ${newBranch}
-                            git push git@github.com:uriya66/DevOps1.git ${newBranch}
+                            git checkout -b ${newBranch}  // Create a new feature branch
+                            git push git@github.com:uriya66/DevOps1.git ${newBranch}  // Push the new branch to GitHub
                         """
                     }
-                    env.GIT_BRANCH = newBranch
+                    env.GIT_BRANCH = newBranch  // Set the new branch as an environment variable
                 }
             }
         }
@@ -78,13 +65,16 @@ pipeline {
         stage('Build') {
             steps {
                 sh """
-                    set -e
-                    echo "Setting up Python virtual environment..."
+                    set -e  // Exit immediately if a command exits with a non-zero status
+                    echo "Setting up Python virtual environment."
 
+                    // Check if virtual environment directory exists, if not, create one
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
 
+                    // Activate the virtual environment
                     . venv/bin/activate
 
+                    // Upgrade pip and install necessary dependencies
                     venv/bin/python -m pip install --upgrade pip
                     venv/bin/python -m pip install flask requests pytest gunicorn
                 """
@@ -94,9 +84,10 @@ pipeline {
         stage('Test') {
             steps {
                 sh """
-                    set -e
-                    echo "Running API tests..."
+                    set -e  // Exit immediately if a command exits with a non-zero status
+                    echo "Running API tests."
 
+                    // Activate the virtual environment before running tests
                     . venv/bin/activate
                     venv/bin/python -m pytest test_app.py
                 """
@@ -105,17 +96,17 @@ pipeline {
 
         stage('Merge to Main') {
             when {
-                expression { env.GIT_BRANCH.startsWith("feature-") }
+                expression { env.GIT_BRANCH.startsWith("feature-") }  // Only merge if it's a feature branch
             }
             steps {
                 script {
-                    echo "Merging ${env.GIT_BRANCH} back to main..."
+                    echo "Merging ${env.GIT_BRANCH} back to main."
 
                     sh """
-                        git checkout main
-                        git pull git@github.com:uriya66/DevOps1.git main
-                        git merge --no-ff ${env.GIT_BRANCH}
-                        git push git@github.com:uriya66/DevOps1.git main
+                        git checkout main  // Switch to the main branch
+                        git pull git@github.com:uriya66/DevOps1.git main  // Get the latest changes
+                        git merge --no-ff ${env.GIT_BRANCH}  // Merge the feature branch into main
+                        git push git@github.com:uriya66/DevOps1.git main  // Push the updated main branch
                     """
                 }
             }
@@ -126,6 +117,7 @@ pipeline {
         always {
             script {
                 try {
+                    // Load the Slack notification script and send a notification
                     def slack = load 'slack_notifications.groovy'
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
                     slack.sendSlackNotification(message, "good")
