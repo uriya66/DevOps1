@@ -102,9 +102,13 @@ pipeline {
         }
 
         stage('Merge to Main') {
-            when {
-                expression { env.GIT_BRANCH.startsWith("feature-") }  // Only merge if it's a feature branch
-            }
+	    when {
+	        expression { 
+	            echo "Current Branch: ${env.GIT_BRANCH}"  // Debugging
+	            return env.GIT_BRANCH?.startsWith("feature-")
+	        }
+	    }	
+            
             steps {
                 script {
                     echo "Merging ${env.GIT_BRANCH} back to main."
