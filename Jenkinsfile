@@ -69,23 +69,6 @@ pipeline {
             }
         }
 
-        stage('Commit & Push Changes') {
-            steps {
-                script {
-                    echo "Committing and pushing changes to feature branch."
-
-                    sh """
-                        git config --global user.email "uriya66@gmail.com"  # Set Git user email
-                        git config --global user.name "Uriya"  # Set Git username
-                        
-                        git add .  # Add all changed files to Git
-                        git commit -m "Automated commit from Jenkins - Build ${env.BUILD_NUMBER}"  # Create a commit
-                        git push origin ${env.GIT_BRANCH}  # Push the commit to the feature branch
-                    """
-                }
-            }
-        }
-
         stage('Build') {
             steps {
                 sh """
