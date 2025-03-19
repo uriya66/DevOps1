@@ -15,8 +15,15 @@ pipeline {
                     // Start SSH Agent and ensure authentication works
                     sh """
                         echo "Starting SSH Agent..."
-                        . /var/lib/jenkins/start-ssh-agent.sh
+                        /var/lib/jenkins/start-ssh-agent.sh
                         . /var/lib/jenkins/.ssh_env  # Load SSH Agent environment
+
+                        # Check if the key exists, and if not - reload it
+                        ssh-add -l || ssh-add /var/lib/jenkins/.ssh/aws_github
+                    """
+
+                    sh """
+                        echo "Current SSH_AUTH_SOCK: $SSH_AUTH_SOCK"
                     """
 
                     // Get the current branch dynamically
