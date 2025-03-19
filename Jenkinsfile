@@ -1,27 +1,28 @@
 pipeline {
-    agent any // Run on any available Jenkins agent
+    agent any
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git' // Use SSH URL for secure authentication
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'
     }
 
     stages {
         stage('Checkout') {
             steps {
                 script {
-                    echo "Checking out the repository..." // Log message
-                    checkout scm // Checkout the source code from SCM
+                    echo "Checking out the repository..."
+                    checkout scm
 
-                    // Ensure SSH Agent is loaded before running Git commands
+                    // Start SSH Agent and ensure authentication works
                     sh """
                         echo "Starting SSH Agent..."
                         . /var/lib/jenkins/start-ssh-agent.sh
+                        . /var/lib/jenkins/.ssh_env  # Load SSH Agent environment
                     """
 
-                    // Get the current branch name dynamically
+                    // Get the current branch dynamically
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                    env.GIT_BRANCH = currentBranch // Store current branch in an environment variable
-                    echo "Current branch: ${env.GIT_BRANCH}" // Log the current branch
+                    env.GIT_BRANCH = currentBranch
+                    echo "Current branch: ${env.GIT_BRANCH}"
                 }
             }
         }
@@ -31,9 +32,9 @@ pipeline {
                 script {
                     sh """
                         echo "Checking SSH Authentication..."
-                        . /var/lib/jenkins/.ssh_env
+                        . /var/lib/jenkins/.ssh_env  # Load SSH Agent environment
                         ssh-add -l || echo "No SSH keys loaded in agent!"
-                        ssh -vT git@github.com || echo "SSH Connection failed!"
+                        ssh -T git@github.com || echo "SSH Connection failed!"
                     """
                 }
             }
@@ -46,9 +47,11 @@ pipeline {
                     echo "Creating a new feature branch: ${newBranch}"
 
                     withEnv(["SSH_AUTH_SOCK=${env.HOME}/.ssh/ssh-agent.sock"]) {
-                        sh "git push git@github.com:uriya66/DevOps1.git ${newBranch}"
+                        sh """
+                            git checkout -b ${newBranch}
+                            git push git@github.com:uriya66/DevOps1.git ${newBranch}
+                        """
                     }
-
                     env.GIT_BRANCH = newBranch
                 }
             }
@@ -57,19 +60,15 @@ pipeline {
         stage('Build') {
             steps {
                 sh """
-                    set -e  # Stop execution if any command fails
-                    echo "Setting up the Python virtual environment..." # Log message
+                    set -e
+                    echo "Setting up Python virtual environment..."
 
-                    # Create virtual environment if it does not exist
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
 
-                    . venv/bin/activate  # Activate the virtual environment
+                    . venv/bin/activate
 
-                    # Upgrade pip to the latest version
-                    venv/bin/python -m pip install --upgrade pip --break-system-packages
-
-                    # Install necessary dependencies for the application
-                    venv/bin/python -m pip install flask requests pytest gunicorn --break-system-packages
+                    venv/bin/python -m pip install --upgrade pip
+                    venv/bin/python -m pip install flask requests pytest gunicorn
                 """
             }
         }
@@ -77,23 +76,19 @@ pipeline {
         stage('Start Gunicorn') {
             steps {
                 sh """
-                    set -e  # Stop execution if any command fails
+                    set -e
+                    echo "Stopping Gunicorn service..."
 
-                    echo "Stopping the existing Gunicorn service..." # Log message
-
-                    # Stop Gunicorn if it is currently running
                     if systemctl is-active --quiet gunicorn; then
                         sudo -n systemctl stop gunicorn
                     fi
 
-                    echo "Starting the Gunicorn service..." # Log message
-                    sudo -n systemctl start gunicorn  # Start Gunicorn service
+                    echo "Starting Gunicorn service..."
+                    sudo -n systemctl start gunicorn
 
-                    sleep 5  # Wait for Gunicorn to fully start
+                    sleep 5
 
-                    echo "Verifying Gunicorn status..." # Log message
-
-                    # Check if Gunicorn is running; if not, exit with an error
+                    echo "Checking Gunicorn status..."
                     if ! systemctl is-active --quiet gunicorn; then
                         echo "ERROR: Gunicorn service failed to start!"
                         exit 1
@@ -105,13 +100,10 @@ pipeline {
         stage('API Health Check') {
             steps {
                 sh """
-                    set -e  # Stop execution if any command fails
-
-                    # Ensure the API health check script is executable
+                    set -e
                     chmod +x api_health_check.sh
-
-                    echo "Running API Health Check..." # Log message
-                    ./api_health_check.sh  # Execute the health check script
+                    echo "Running API Health Check..."
+                    ./api_health_check.sh
                 """
             }
         }
@@ -119,13 +111,10 @@ pipeline {
         stage('Test') {
             steps {
                 sh """
-                    set -e  # Stop execution if any command fails
+                    set -e
+                    echo "Running API tests..."
 
-                    echo "Running API tests..." # Log message
-
-                    . venv/bin/activate  # Activate the virtual environment
-
-                    # Run unit tests using pytest
+                    . venv/bin/activate
                     venv/bin/python -m pytest test_app.py
                 """
             }
@@ -133,17 +122,17 @@ pipeline {
 
         stage('Merge to Main') {
             when {
-                expression { env.GIT_BRANCH.startsWith("feature-") } // Ensure only feature branches are merged
+                expression { env.GIT_BRANCH.startsWith("feature-") }
             }
             steps {
                 script {
-                    echo "Merging ${env.GIT_BRANCH} back to main..." // Log message
+                    echo "Merging ${env.GIT_BRANCH} back to main..."
 
                     sh """
-                        git checkout main  # Switch to the main branch
-                        git pull git@github.com:uriya66/DevOps1.git main  # Ensure main is up to date before merging
-                        git merge --no-ff ${env.GIT_BRANCH}  # Merge feature branch into main (no fast-forward)
-                        git push git@github.com:uriya66/DevOps1.git main  # Push merged changes to the remote repository
+                        git checkout main
+                        git pull git@github.com:uriya66/DevOps1.git main
+                        git merge --no-ff ${env.GIT_BRANCH}
+                        git push git@github.com:uriya66/DevOps1.git main
                     """
                 }
             }
@@ -154,16 +143,11 @@ pipeline {
         always {
             script {
                 try {
-                    // Load external Slack notification script
                     def slack = load 'slack_notifications.groovy'
-
-                    // Construct a Slack message with build details
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
-
-                    // Send a Slack notification about the build status
                     slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}" // Log error if Slack notification fails
+                    echo "Error sending Slack notification: ${e.message}"
                 }
             }
         }
