@@ -2,42 +2,39 @@ pipeline {
     agent any // Run on any available Jenkins agent
 
     environment {
-        REPO_URL = 'https://github.com/uriya66/DevOps1.git' // Define the GitHub repository URL
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git' // Use SSH URL for secure authentication
+        CREDENTIALS_ID = 'Jenkins-GitHub-Token' // The Jenkins credential ID for SSH authentication
     }
 
     stages {
         stage('Checkout') {
             steps {
                 script {
-                    echo "Checking out the repository..." // Print message indicating checkout process
-                    git branch: "main", url: "${REPO_URL}" // Checkout the main branch from GitHub
+                    echo "Checking out the repository..." // Log message
+                    checkout scm // Checkout the source code from SCM
 
-                    // Get the current branch name and store it in an environment variable
+                    // Get the current branch name dynamically
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                    env.GIT_BRANCH = currentBranch
-                    echo "Current branch: ${env.GIT_BRANCH}" // Print the current branch name
+                    env.GIT_BRANCH = currentBranch // Store current branch in an environment variable
+                    echo "Current branch: ${env.GIT_BRANCH}" // Log the current branch
                 }
             }
         }
 
         stage('Create Feature Branch') {
-            when {
-                expression { env.GIT_BRANCH == 'main' } // Execute only if running on the main branch
-            }
             steps {
                 script {
-                    // Generate a unique feature branch name based on the Jenkins build number
+                    // Generate a new feature branch name using Jenkins build number
                     def newBranch = "feature-${env.BUILD_NUMBER}"
-                    echo "Creating a new feature branch: ${newBranch}" // Log the branch creation
+                    echo "Creating a new feature branch: ${newBranch}" // Log message
 
-                    // Create a new branch and push it to the remote repository
+                    // Create and push the new branch to the remote repository
                     sh """
                         git checkout -b ${newBranch}  # Create a new feature branch
-                        git push origin ${newBranch}  # Push the branch to the remote repository
+                        git push origin ${newBranch}  # Push the new branch to the remote repository
                     """
 
-                    // Update the environment variable with the new branch name
-                    env.GIT_BRANCH = newBranch
+                    env.GIT_BRANCH = newBranch // Update environment variable with the new branch name
                 }
             }
         }
@@ -45,12 +42,19 @@ pipeline {
         stage('Build') {
             steps {
                 sh """
-                    set -e  # Stop execution if any command fails 
-                    echo "Setting up the Python virtual environment..."
-                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  # Create virtual environment if not exists
+                    set -e  # Stop execution if any command fails
+                    echo "Setting up the Python virtual environment..." # Log message
+                    
+                    # Create virtual environment if it does not exist
+                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  
+
                     . venv/bin/activate  # Activate the virtual environment
-                    venv/bin/python -m pip install --upgrade pip --break-system-packages # Upgrade pip
-                    venv/bin/python -m pip install flask requests pytest gunicorn --break-system-packages # Install dependencies
+                    
+                    # Upgrade pip to the latest version
+                    venv/bin/python -m pip install --upgrade pip --break-system-packages
+                    
+                    # Install necessary dependencies for the application
+                    venv/bin/python -m pip install flask requests pytest gunicorn --break-system-packages
                 """
             }
         }
@@ -59,20 +63,25 @@ pipeline {
             steps {
                 sh """
                     set -e  # Stop execution if any command fails
-                    echo "Stopping the existing Gunicorn service..."
+                    
+                    echo "Stopping the existing Gunicorn service..." # Log message
+                    
+                    # Stop Gunicorn if it is currently running
                     if systemctl is-active --quiet gunicorn; then
-                        sudo -n systemctl stop gunicorn  # Stop Gunicorn if it is already running
+                        sudo -n systemctl stop gunicorn
                     fi
 
-                    echo "Starting the Gunicorn service..."
-                    sudo -n systemctl start gunicorn  # Start the Gunicorn service
+                    echo "Starting the Gunicorn service..." # Log message
+                    sudo -n systemctl start gunicorn  # Start Gunicorn service
 
                     sleep 5  # Wait for Gunicorn to fully start
 
-                    echo "Verifying Gunicorn status..."
+                    echo "Verifying Gunicorn status..." # Log message
+                    
+                    # Check if Gunicorn is running; if not, exit with an error
                     if ! systemctl is-active --quiet gunicorn; then
                         echo "ERROR: Gunicorn service failed to start!"
-                        exit 1  # Exit with an error if Gunicorn is not running
+                        exit 1
                     fi
                 """
             }
@@ -80,10 +89,13 @@ pipeline {
 
         stage('API Health Check') {
             steps {
-                // Run the API health check script to ensure the Flask application is running correctly
                 sh """
                     set -e  # Stop execution if any command fails
-                    chmod +x api_health_check.sh  # Ensure the script is executable
+                    
+                    # Ensure the API health check script is executable
+                    chmod +x api_health_check.sh  
+                    
+                    echo "Running API Health Check..." # Log message
                     ./api_health_check.sh  # Execute the health check script
                 """
             }
@@ -91,28 +103,31 @@ pipeline {
 
         stage('Test') {
             steps {
-                // Run unit tests using pytest to validate API functionality
                 sh """
                     set -e  # Stop execution if any command fails
-                    echo "Running API tests..."
+                    
+                    echo "Running API tests..." # Log message
+                    
                     . venv/bin/activate  # Activate the virtual environment
-                    venv/bin/python -m pytest test_app.py  # Run pytest
+                    
+                    # Run unit tests using pytest
+                    venv/bin/python -m pytest test_app.py
                 """
             }
         }
 
         stage('Merge to Main') {
             when {
-                expression { env.GIT_BRANCH.startsWith("feature-") } // Only merge feature branches back to main
+                expression { env.GIT_BRANCH.startsWith("feature-") } // Ensure only feature branches are merged
             }
             steps {
                 script {
-                    echo "Merging ${env.GIT_BRANCH} back to main..." // Print the merge action
+                    echo "Merging ${env.GIT_BRANCH} back to main..." // Log message
 
-                    // Checkout the main branch, merge the feature branch, and push the changes
                     sh """
                         git checkout main  # Switch to the main branch
-                        git merge --no-ff ${env.GIT_BRANCH}  # Merge the feature branch into main (no fast-forward)
+                        git pull origin main  # Ensure main is up to date before merging
+                        git merge --no-ff ${env.GIT_BRANCH}  # Merge feature branch into main (no fast-forward)
                         git push origin main  # Push merged changes to the remote repository
                     """
                 }
@@ -124,16 +139,16 @@ pipeline {
         always {
             script {
                 try {
-                    // Load external Slack notification script to notify about the pipeline result
+                    // Load external Slack notification script
                     def slack = load 'slack_notifications.groovy'
 
-                    // Construct Slack message containing build details
+                    // Construct a Slack message with build details
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
 
-                    // Send Slack notification with the build status
+                    // Send a Slack notification about the build status
                     slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}" // Print error message in case of failure
+                    echo "Error sending Slack notification: ${e.message}" // Log error if Slack notification fails
                 }
             }
         }
