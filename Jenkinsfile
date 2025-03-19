@@ -19,7 +19,7 @@ pipeline {
                         // Ensure the SSH key is loaded in the agent
                         sh "ssh-add -l"
 
-                        // Test SSH connection (Ignoring "does not provide shell access" message)
+                        // Test SSH connection to GitHub
                         sh """
                             if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
                                 echo "SSH Connection successful."
@@ -37,7 +37,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out the repository."
-                    // Checkout source code from GitHub repository using SSH authentication
+                    // Checkout source code using SSH authentication
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: '*/main']],  // Fetch the main branch
@@ -53,18 +53,18 @@ pipeline {
         stage('Create Feature Branch') {
             steps {
                 script {
-                    // Create a new branch based on the build number
+                    // Generate a feature branch name based on the build number
                     def newBranch = "feature-${env.BUILD_NUMBER}"
                     echo "Creating a new feature branch: ${newBranch}"
 
-                    // Use the correct SSH authentication socket to ensure secure Git operations
+                    // Use SSH_AUTH_SOCK for secure authentication
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
                             git checkout -b ${newBranch}  # Create a new feature branch
-                            git push git@github.com:uriya66/DevOps1.git ${newBranch}  # Push the new branch to GitHub
+                            git push origin ${newBranch}  # Push the new branch to GitHub
                         """
                     }
-                    env.GIT_BRANCH = newBranch  // Set the new branch as an environment variable
+                    env.GIT_BRANCH = newBranch  // Store the branch name for later use
                 }
             }
         }
@@ -72,16 +72,16 @@ pipeline {
         stage('Build') {
             steps {
                 sh """
-                    set -e  # Exit immediately if a command exits with a non-zero status
+                    set -e  # Exit immediately if a command fails
                     echo "Setting up Python virtual environment."
 
-                    # Check if virtual environment directory exists, if not, create one
+                    # Check if virtual environment directory exists, if not, create it
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
 
                     # Activate the virtual environment
                     . venv/bin/activate
 
-                    # Upgrade pip and install necessary dependencies
+                    # Upgrade pip and install dependencies
                     venv/bin/python -m pip install --upgrade pip
                     venv/bin/python -m pip install flask requests pytest gunicorn
                 """
@@ -91,7 +91,7 @@ pipeline {
         stage('Test') {
             steps {
                 sh """
-                    set -e  # Exit immediately if a command exits with a non-zero status
+                    set -e  # Exit immediately if a command fails
                     echo "Running API tests."
 
                     # Activate the virtual environment before running tests
@@ -111,9 +111,9 @@ pipeline {
 
                     sh """
                         git checkout main  # Switch to the main branch
-                        git pull git@github.com:uriya66/DevOps1.git main  # Get the latest changes
-                        git merge --no-ff ${env.GIT_BRANCH}  # Merge the feature branch into main
-                        git push git@github.com:uriya66/DevOps1.git main  # Push the updated main branch
+                        git pull origin main  # Fetch the latest changes
+                        git merge --no-ff ${env.GIT_BRANCH}  # Merge feature branch into main
+                        git push origin main  # Push the updated main branch
                     """
                 }
             }
@@ -124,7 +124,7 @@ pipeline {
         always {
             script {
                 try {
-                    // Load the Slack notification script and send a notification
+                    // Send Slack notification after every build
                     def slack = load 'slack_notifications.groovy'
                     def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
                     slack.sendSlackNotification(message, "good")
