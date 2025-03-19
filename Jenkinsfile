@@ -9,6 +9,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
+                    sh "source /var/lib/jenkins/start-ssh-agent.sh"
                     echo "Checking out the repository..." // Log message
                     checkout scm // Checkout the source code from SCM
 
@@ -23,17 +24,16 @@ pipeline {
         stage('Create Feature Branch') {
             steps {
                 script {
-                    // Generate a new feature branch name using Jenkins build number
                     def newBranch = "feature-${env.BUILD_NUMBER}"
-                    echo "Creating a new feature branch: ${newBranch}"  // Log message
+                    echo "Creating a new feature branch: ${newBranch}"
 
-                    // Create and push the new branch to the remote repository using SSH
-                    sh """
-                        git checkout -b ${newBranch}  # Create a new feature branch
-                        git push git@github.com:uriya66/DevOps1.git ${newBranch}  # Push using SSH
-                    """
-
-                    env.GIT_BRANCH = newBranch // Update environment variable with the new branch name
+                    withEnv(["SSH_AUTH_SOCK=${env.HOME}/.ssh/ssh-agent.sock"]) {
+                        sh """
+                           git checkout -b ${newBranch}
+                           git push git@github.com:uriya66/DevOps1.git ${newBranch}
+                        """
+                    }
+                    env.GIT_BRANCH = newBranch
                 }
             }
         }
