@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git' // Use SSH URL for secure authentication
-        CREDENTIALS_ID = 'Jenkins-GitHub-Token' // The Jenkins credential ID for SSH authentication
+        # CREDENTIALS_ID = 'Jenkins-GitHub-Token' // The Jenkins credential ID for SSH authentication
     }
 
     stages {
@@ -28,10 +28,10 @@ pipeline {
                     def newBranch = "feature-${env.BUILD_NUMBER}"
                     echo "Creating a new feature branch: ${newBranch}" // Log message
 
-                    // Create and push the new branch to the remote repository
+                    // Create and push the new branch to the remote repository using SSH
                     sh """
                         git checkout -b ${newBranch}  # Create a new feature branch
-                        git push origin ${newBranch}  # Push the new branch to the remote repository
+                        git push git@github.com:uriya66/DevOps1.git ${newBranch}  # Push using SSH
                     """
 
                     env.GIT_BRANCH = newBranch // Update environment variable with the new branch name
@@ -126,9 +126,9 @@ pipeline {
 
                     sh """
                         git checkout main  # Switch to the main branch
-                        git pull origin main  # Ensure main is up to date before merging
+                        git pull git@github.com:uriya66/DevOps1.git main  # Ensure main is up to date before merging
                         git merge --no-ff ${env.GIT_BRANCH}  # Merge feature branch into main (no fast-forward)
-                        git push origin main  # Push merged changes to the remote repository
+                        git push git@github.com:uriya66/DevOps1.git main  # Push merged changes to the remote repository
                     """
                 }
             }
@@ -154,4 +154,3 @@ pipeline {
         }
     }
 }
-
