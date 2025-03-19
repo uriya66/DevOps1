@@ -25,7 +25,7 @@ pipeline {
                 script {
                     // Generate a new feature branch name using Jenkins build number
                     def newBranch = "feature-${env.BUILD_NUMBER}"
-                    echo "Creating a new feature branch: ${newBranch}" // Log message
+                    echo "Creating a new feature branch: ${newBranch}"  // Log message
 
                     // Create and push the new branch to the remote repository using SSH
                     sh """
