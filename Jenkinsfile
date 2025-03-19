@@ -8,7 +8,7 @@ pipeline {
     stages {
         stage('Start SSH Agent') {
             steps {
-                sshagent(credentials: ['Jenkins-GitHub-Token']) {
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
                         echo "Starting SSH Agent and verifying authentication..."
                         
@@ -34,7 +34,7 @@ pipeline {
                         branches: [[name: '*/main']],
                         userRemoteConfigs: [[
                             url: 'git@github.com:uriya66/DevOps1.git',
-                            credentialsId: 'Jenkins-GitHub-Token'
+                            credentialsId: 'Jenkins-GitHub-SSH'
                         ]]
                     ])
                 }
