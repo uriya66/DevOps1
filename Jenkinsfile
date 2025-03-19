@@ -16,7 +16,8 @@ pipeline {
                     sh """
                         echo "Starting SSH Agent..."
 			source /var/lib/jenkins/start-ssh-agent.sh
-                        bash -c 'source /var/lib/jenkins/start-ssh-agent.sh && ssh-add -l'
+                        
+                        // bash -c 'source /var/lib/jenkins/start-ssh-agent.sh && ssh-add -l'
                     """
 
                     // Get the current branch name dynamically
