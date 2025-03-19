@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git' // Use SSH URL for secure authentication
-        // CREDENTIALS_ID = 'Jenkins-GitHub-Token' // The Jenkins credential ID for SSH authentication
     }
 
     stages {
