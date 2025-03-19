@@ -1,26 +1,33 @@
 pipeline {
-    agent any  // Runs the pipeline on any available Jenkins agent
+    agent any  // Run the pipeline on any available Jenkins agent
 
     environment {
-        REPO_URL = 'https://github.com/uriya66/DevOps1.git'  // Use HTTPS instead of SSH
-        CREDENTIALS_ID = 'Jenkins-GitHub-Token'  // Ensure you are using a valid PAT credential
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define the GitHub repository URL
     }
 
     stages {
         stage('Start SSH Agent') {
             steps {
-                sshagent(credentials: ['Jenkins-GitHub-SSH']) {  // Load SSH credentials
+                // Start SSH Agent using Jenkins credentials (Ensure 'Jenkins-GitHub-SSH' exists in Jenkins)
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
                         echo "Starting SSH Agent and verifying authentication."
 
-                        // Print SSH_AUTH_SOCK to confirm it's correctly set
+                        // Print SSH_AUTH_SOCK to verify it's correctly set
                         sh "echo 'SSH_AUTH_SOCK is: $SSH_AUTH_SOCK'"
 
                         // Ensure the SSH key is loaded in the agent
                         sh "ssh-add -l"
 
-                        // Test SSH connection to GitHub
-                        sh "ssh -T git@github.com || echo 'SSH Connection failed!'"
+                        // Test SSH connection (Ignoring "does not provide shell access" message)
+                        sh """
+                            if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+                                echo "SSH Connection successful."
+                            else
+                                echo "ERROR: SSH Connection failed!"
+                                exit 1
+                            fi
+                        """
                     }
                 }
             }
@@ -30,12 +37,13 @@ pipeline {
             steps {
                 script {
                     echo "Checking out the repository."
+                    // Checkout source code from GitHub repository using SSH authentication
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: '*/main']],  // Fetch the main branch
                         userRemoteConfigs: [[
-                            url: env.REPO_URL,  // Use HTTPS instead of SSH
-                            credentialsId: env.CREDENTIALS_ID  // Use GitHub PAT token instead of SSH
+                            url: 'git@github.com:uriya66/DevOps1.git',  // Use SSH URL for authentication
+                            credentialsId: 'Jenkins-GitHub-SSH'  // Ensure the correct credentials are used
                         ]]
                     ])
                 }
@@ -45,17 +53,35 @@ pipeline {
         stage('Create Feature Branch') {
             steps {
                 script {
-                    def newBranch = "feature-${env.BUILD_NUMBER}"  // Create a feature branch
+                    // Create a new branch based on the build number
+                    def newBranch = "feature-${env.BUILD_NUMBER}"
                     echo "Creating a new feature branch: ${newBranch}"
 
-                    // Ensure the correct SSH authentication socket is used
-                    withEnv(["SSH_AUTH_SOCK=${env.HOME}/.ssh/ssh-agent.sock"]) {
+                    // Use the correct SSH authentication socket to ensure secure Git operations
+                    withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${newBranch}  // Create a new branch
-                            git push https://github.com/uriya66/DevOps1.git ${newBranch}  // Push the new branch using HTTPS
+                            git checkout -b ${newBranch}  # Create a new feature branch
+                            git push git@github.com:uriya66/DevOps1.git ${newBranch}  # Push the new branch to GitHub
                         """
                     }
-                    env.GIT_BRANCH = newBranch  // Store the branch name
+                    env.GIT_BRANCH = newBranch  // Set the new branch as an environment variable
+                }
+            }
+        }
+
+        stage('Commit & Push Changes') {
+            steps {
+                script {
+                    echo "Committing and pushing changes to feature branch."
+
+                    sh """
+                        git config --global user.email "uriya66@gmail.com"  # Set Git user email
+                        git config --global user.name "Uriya"  # Set Git username
+                        
+                        git add .  # Add all changed files to Git
+                        git commit -m "Automated commit from Jenkins - Build ${env.BUILD_NUMBER}"  # Create a commit
+                        git push origin ${env.GIT_BRANCH}  # Push the commit to the feature branch
+                    """
                 }
             }
         }
@@ -63,16 +89,16 @@ pipeline {
         stage('Build') {
             steps {
                 sh """
-                    set -e  // Exit immediately if a command exits with a non-zero status
+                    set -e  # Exit immediately if a command exits with a non-zero status
                     echo "Setting up Python virtual environment."
 
-                    // Check if virtual environment directory exists, if not, create one
+                    # Check if virtual environment directory exists, if not, create one
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
 
-                    // Activate the virtual environment
+                    # Activate the virtual environment
                     . venv/bin/activate
 
-                    // Upgrade pip and install necessary dependencies
+                    # Upgrade pip and install necessary dependencies
                     venv/bin/python -m pip install --upgrade pip
                     venv/bin/python -m pip install flask requests pytest gunicorn
                 """
@@ -82,10 +108,10 @@ pipeline {
         stage('Test') {
             steps {
                 sh """
-                    set -e  // Exit immediately if a command exits with a non-zero status
+                    set -e  # Exit immediately if a command exits with a non-zero status
                     echo "Running API tests."
 
-                    // Activate the virtual environment before running tests
+                    # Activate the virtual environment before running tests
                     . venv/bin/activate
                     venv/bin/python -m pytest test_app.py
                 """
@@ -101,10 +127,10 @@ pipeline {
                     echo "Merging ${env.GIT_BRANCH} back to main."
 
                     sh """
-                        git checkout main  // Switch to the main branch
-                        git pull https://github.com/uriya66/DevOps1.git main  // Fetch latest changes using HTTPS
-                        git merge --no-ff ${env.GIT_BRANCH}  // Merge feature branch into main
-                        git push https://github.com/uriya66/DevOps1.git main  // Push updated main branch
+                        git checkout main  # Switch to the main branch
+                        git pull git@github.com:uriya66/DevOps1.git main  # Get the latest changes
+                        git merge --no-ff ${env.GIT_BRANCH}  # Merge the feature branch into main
+                        git push git@github.com:uriya66/DevOps1.git main  # Push the updated main branch
                     """
                 }
             }
