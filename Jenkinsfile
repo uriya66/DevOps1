@@ -15,9 +15,7 @@ pipeline {
                     // Ensure SSH Agent is loaded before running Git commands
                     sh """
                         echo "Starting SSH Agent..."
-			source /var/lib/jenkins/start-ssh-agent.sh
-                        
-                        // bash -c 'source /var/lib/jenkins/start-ssh-agent.sh && ssh-add -l'
+                        . /var/lib/jenkins/start-ssh-agent.sh
                     """
 
                     // Get the current branch name dynamically
@@ -33,7 +31,7 @@ pipeline {
                 script {
                     sh """
                         echo "Checking SSH Authentication..."
-                        source /var/lib/jenkins/.ssh_env
+                        . /var/lib/jenkins/.ssh_env
                         ssh-add -l || echo "No SSH keys loaded in agent!"
                         ssh -vT git@github.com || echo "SSH Connection failed!"
                     """
@@ -171,3 +169,4 @@ pipeline {
         }
     }
 }
+
