@@ -26,6 +26,18 @@ pipeline {
             }
         }
 
+        stage('Verify SSH Connection') {
+            steps {
+                script {
+                    sh """
+                        echo "Checking SSH Authentication..."
+                        ssh-add -l || echo "No SSH keys loaded in agent!"
+                        ssh -vT git@github.com
+                    """
+                }
+            }
+        }
+
         stage('Create Feature Branch') {
             steps {
                 script {
