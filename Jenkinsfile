@@ -104,11 +104,11 @@ pipeline {
         stage('Merge to Main') {
 	    when {
 	        expression { 
-	            echo "Current Branch: ${env.GIT_BRANCH}"  // Debugging
-	            return env.GIT_BRANCH?.startsWith("feature-")
+                    def branchName = env.GIT_BRANCH.replace("origin/", "")  // Remove 'origin/' prefix if exists
+                    echo "Current Branch after cleanup: ${branchName}"
+                    return branchName.startsWith("feature-")
 	        }
-	    }	
-            
+	    }
             steps {
                 script {
                     echo "Merging ${env.GIT_BRANCH} back to main."
