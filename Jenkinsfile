@@ -15,6 +15,7 @@ pipeline {
                     // Ensure SSH Agent is loaded before running Git commands
                     sh """
                         echo "Starting SSH Agent..."
+			source /var/lib/jenkins/start-ssh-agent.sh
                         bash -c 'source /var/lib/jenkins/start-ssh-agent.sh && ssh-add -l'
                     """
 
@@ -31,6 +32,7 @@ pipeline {
                 script {
                     sh """
                         echo "Checking SSH Authentication..."
+                        source /var/lib/jenkins/.ssh_env
                         ssh-add -l || echo "No SSH keys loaded in agent!"
                         ssh -vT git@github.com || echo "SSH Connection failed!"
                     """
@@ -44,12 +46,10 @@ pipeline {
                     def newBranch = "feature-${env.BUILD_NUMBER}"
                     echo "Creating a new feature branch: ${newBranch}"
 
-                    withEnv(["SSH_AUTH_SOCK=/tmp/ssh-agent.sock"]) {
-                        sh """
-                           git checkout -b ${newBranch}
-                           git push git@github.com:uriya66/DevOps1.git ${newBranch}
-                        """
+                    withEnv(["SSH_AUTH_SOCK=${env.HOME}/.ssh/ssh-agent.sock"]) {
+                        sh "git push git@github.com:uriya66/DevOps1.git ${newBranch}"
                     }
+
                     env.GIT_BRANCH = newBranch
                 }
             }
