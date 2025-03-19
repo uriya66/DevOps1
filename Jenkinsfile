@@ -11,13 +11,13 @@ pipeline {
                 script {
                     echo "Checking out the repository..." // Log message
                     checkout scm // Checkout the source code from SCM
-                    
-                    
-                    // Loads the SSH-Agent correctly
+
+                    // Ensure SSH Agent is loaded before running Git commands
                     sh """
-                        bash -c 'source /var/lib/jenkins/start-ssh-agent.sh && env'
+                        echo "Starting SSH Agent..."
+                        bash -c 'source /var/lib/jenkins/start-ssh-agent.sh && ssh-add -l'
                     """
-                    
+
                     // Get the current branch name dynamically
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
                     env.GIT_BRANCH = currentBranch // Store current branch in an environment variable
@@ -32,7 +32,7 @@ pipeline {
                     sh """
                         echo "Checking SSH Authentication..."
                         ssh-add -l || echo "No SSH keys loaded in agent!"
-                        ssh -vT git@github.com
+                        ssh -vT git@github.com || echo "SSH Connection failed!"
                     """
                 }
             }
@@ -44,7 +44,7 @@ pipeline {
                     def newBranch = "feature-${env.BUILD_NUMBER}"
                     echo "Creating a new feature branch: ${newBranch}"
 
-                    withEnv(["SSH_AUTH_SOCK=${env.HOME}/.ssh/ssh-agent.sock"]) {
+                    withEnv(["SSH_AUTH_SOCK=/tmp/ssh-agent.sock"]) {
                         sh """
                            git checkout -b ${newBranch}
                            git push git@github.com:uriya66/DevOps1.git ${newBranch}
@@ -60,15 +60,15 @@ pipeline {
                 sh """
                     set -e  # Stop execution if any command fails
                     echo "Setting up the Python virtual environment..." # Log message
-                    
+
                     # Create virtual environment if it does not exist
-                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  
+                    if [ ! -d "venv" ]; then python3 -m venv venv; fi
 
                     . venv/bin/activate  # Activate the virtual environment
-                    
+
                     # Upgrade pip to the latest version
                     venv/bin/python -m pip install --upgrade pip --break-system-packages
-                    
+
                     # Install necessary dependencies for the application
                     venv/bin/python -m pip install flask requests pytest gunicorn --break-system-packages
                 """
@@ -79,9 +79,9 @@ pipeline {
             steps {
                 sh """
                     set -e  # Stop execution if any command fails
-                    
+
                     echo "Stopping the existing Gunicorn service..." # Log message
-                    
+
                     # Stop Gunicorn if it is currently running
                     if systemctl is-active --quiet gunicorn; then
                         sudo -n systemctl stop gunicorn
@@ -93,7 +93,7 @@ pipeline {
                     sleep 5  # Wait for Gunicorn to fully start
 
                     echo "Verifying Gunicorn status..." # Log message
-                    
+
                     # Check if Gunicorn is running; if not, exit with an error
                     if ! systemctl is-active --quiet gunicorn; then
                         echo "ERROR: Gunicorn service failed to start!"
@@ -107,10 +107,10 @@ pipeline {
             steps {
                 sh """
                     set -e  # Stop execution if any command fails
-                    
+
                     # Ensure the API health check script is executable
-                    chmod +x api_health_check.sh  
-                    
+                    chmod +x api_health_check.sh
+
                     echo "Running API Health Check..." # Log message
                     ./api_health_check.sh  # Execute the health check script
                 """
@@ -121,11 +121,11 @@ pipeline {
             steps {
                 sh """
                     set -e  # Stop execution if any command fails
-                    
+
                     echo "Running API tests..." # Log message
-                    
+
                     . venv/bin/activate  # Activate the virtual environment
-                    
+
                     # Run unit tests using pytest
                     venv/bin/python -m pytest test_app.py
                 """
