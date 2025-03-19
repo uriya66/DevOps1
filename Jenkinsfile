@@ -9,10 +9,15 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    sh "source /var/lib/jenkins/start-ssh-agent.sh"
                     echo "Checking out the repository..." // Log message
                     checkout scm // Checkout the source code from SCM
-
+                    
+                    
+                    // Loads the SSH-Agent correctly
+                    sh """
+                        bash -c 'source /var/lib/jenkins/start-ssh-agent.sh && env'
+                    """
+                    
                     // Get the current branch name dynamically
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
                     env.GIT_BRANCH = currentBranch // Store current branch in an environment variable
