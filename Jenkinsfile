@@ -1,13 +1,13 @@
 pipeline {
-    agent any  // Run the pipeline on any available Jenkins agent
+    agent any
 
     options {
         disableConcurrentBuilds() // Prevent multiple builds from running simultaneously
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define GitHub repository URL
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Ensure branch name is globally available
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -36,12 +36,14 @@ pipeline {
                     echo "Checking out the repository."
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: '*/main']],  // Fetch the main branch
+                        branches: [[name: '*/main']],
                         userRemoteConfigs: [[
-                            url: REPO_URL,  // Use SSH URL for authentication
+                            url: REPO_URL,
                             credentialsId: 'Jenkins-GitHub-SSH'
                         ]]
                     ])
+                    env.GIT_BRANCH = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    echo "Current Git branch: ${env.GIT_BRANCH}"
                 }
             }
         }
@@ -49,7 +51,7 @@ pipeline {
         stage('Create Feature Branch') {
             when {
                 expression {
-                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false) // Only create if not already a feature branch
+                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false)
                 }
             }
             steps {
@@ -63,8 +65,8 @@ pipeline {
                         """
                     }
 
-                    // ✅ **תיקון קריטי - הגדרת env.GIT_BRANCH מחוץ ל-Shell**
                     env.GIT_BRANCH = BRANCH_NAME
+                    echo "Updated GIT_BRANCH: ${env.GIT_BRANCH}"
                 }
             }
         }
@@ -96,7 +98,8 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return (env.GIT_BRANCH?.startsWith("feature-") ?: false) || env.GIT_BRANCH == "feature-test" // Merge only if it’s a feature branch
+                    echo "Checking merge condition: env.GIT_BRANCH=${env.GIT_BRANCH}"
+                    return env.GIT_BRANCH.startsWith("feature-") || env.GIT_BRANCH == "feature-test"
                 }
             }
             steps {
