@@ -1,6 +1,15 @@
 pipeline {
     agent any  // Run the pipeline on any available Jenkins agent
 
+    options {
+        disableConcurrentBuilds() // Prevents running multiple builds simultaneously
+        skipStagesAfterUnstable() // Stops further stages if one fails
+    }
+
+    triggers {
+        // No pollSCM to prevent unnecessary builds - we rely only on GitHub Webhooks
+    }
+
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define the GitHub repository URL
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create a unique feature branch per build
@@ -85,6 +94,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
+                    // Extract branch name and check if it starts with 'feature-'
                     def branchName = env.GIT_BRANCH.replace("origin/", "")
                     echo "Current Branch after cleanup: ${branchName}"
                     return branchName.startsWith("feature-")
@@ -93,6 +103,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking if all tests passed before merging..."
+                    
                     if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
                         echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
                         sh """
