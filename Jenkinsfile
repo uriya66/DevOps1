@@ -2,23 +2,24 @@ pipeline {
     agent any  // Run the pipeline on any available Jenkins agent
 
     options {
-        disableConcurrentBuilds() // Prevent multiple builds from running simultaneously
-        skipStagesAfterUnstable() // Stop pipeline if a stage fails
+        disableConcurrentBuilds() // Prevents duplicate children running
     }
-
+    triggers {
+        pollSCM('* * * * *') // Will only run on code changes, not Merge
+    }
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub repository URL
-        BUILD_ID = env.BUILD_NUMBER ?: "manual" // Ensure there's always a build ID
-        BRANCH_NAME = "feature-${BUILD_ID}" // Generate a unique feature branch per build
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define the GitHub repository URL
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create a unique feature branch per build
     }
 
     stages {
-        stage('Start SSH Agent') { // Start SSH authentication for GitHub access
+        stage('Start SSH Agent') {
             steps {
-                sshagent(credentials: ['Jenkins-GitHub-SSH']) { // Use stored SSH credentials
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
                         echo "Starting SSH Agent and verifying authentication."
-                        sh "ssh-add -l" // List currently added SSH keys
+                        sh "echo 'SSH_AUTH_SOCK is: $SSH_AUTH_SOCK'"
+                        sh "ssh-add -l"
                         sh """
                             if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
                                 echo "SSH Connection successful."
@@ -32,7 +33,7 @@ pipeline {
             }
         }
 
-        stage('Checkout') { // Checkout the main branch from GitHub
+        stage('Checkout') {
             steps {
                 script {
                     echo "Checking out the repository."
@@ -48,71 +49,66 @@ pipeline {
             }
         }
 
-        stage('Create Feature Branch') { // Create a new feature branch for this build
+        stage('Create Feature Branch') {
             steps {
                 script {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"
-                    if (!BRANCH_NAME || BRANCH_NAME == "feature-") {
-                        error "Invalid branch name: ${BRANCH_NAME}"
-                    }
-                    withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) { // Ensure SSH authentication persists
+                    withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${BRANCH_NAME}  // Create a new feature branch
-                            git push origin ${BRANCH_NAME}  // Push the feature branch to GitHub
+                            git checkout -b ${BRANCH_NAME}
+                            git push origin ${BRANCH_NAME}
                         """
                     }
-                    env.GIT_BRANCH = BRANCH_NAME // Store the branch name in environment variables
+                    env.GIT_BRANCH = BRANCH_NAME
                 }
             }
         }
 
-        stage('Build') { // Install dependencies and prepare the environment
+        stage('Build') {
             steps {
                 sh """
                     set -e
                     echo "Setting up Python virtual environment."
-                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  // Create a virtual environment if it does not exist
-                    . venv/bin/activate  // Activate the virtual environment
-                    venv/bin/python -m pip install --upgrade pip  // Upgrade pip
-                    venv/bin/python -m pip install flask requests pytest gunicorn  // Install dependencies
+                    if [ ! -d "venv" ]; then python3 -m venv venv; fi
+                    . venv/bin/activate
+                    venv/bin/python -m pip install --upgrade pip
+                    venv/bin/python -m pip install flask requests pytest gunicorn
                 """
             }
         }
 
-        stage('Test') { // Run tests to ensure code stability
+        stage('Test') {
             steps {
                 sh """
                     set -e
                     echo "Running API tests."
-                    . venv/bin/activate  // Activate virtual environment
-                    venv/bin/python -m pytest test_app.py  // Run all tests
+                    . venv/bin/activate
+                    venv/bin/python -m pytest test_app.py
                 """
             }
         }
 
-        stage('Merge to Main') { // Merge the feature branch into main if tests pass
+        stage('Merge to Main') {
             when {
                 expression {
-                    // Extract branch name and check if it starts with 'feature-'
                     def branchName = env.GIT_BRANCH.replace("origin/", "")
                     echo "Current Branch after cleanup: ${branchName}"
-                    return branchName.startsWith("feature-")  // Only merge if it is a feature branch
+                    return branchName.startsWith("feature-")
                 }
             }
             steps {
                 script {
                     echo "Checking if all tests passed before merging..."
-                    
-                    if (currentBuild.result == null || currentBuild.result == 'SUCCESS') { // Ensure the build was successful
+                    if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
                         echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
                         sh """
-                            git checkout main  // Switch to the main branch
-                            git pull origin main  // Fetch the latest changes from main
-                            git merge --no-ff ${env.GIT_BRANCH}  // Merge the feature branch
-                            git push origin main  // Push the updated main branch to GitHub
+                            git checkout main
+                            git pull origin main
+                            git merge --no-ff ${env.GIT_BRANCH}
+                            git push origin main
                         """
                     } else {
-                        echo "Tests failed, skipping merge!"  // Do not merge if tests failed
+                        echo "Tests failed, skipping merge!"
                     }
                 }
             }
@@ -120,27 +116,26 @@ pipeline {
     }
 
     post {
-        success { // Actions to perform if the pipeline is successful
+        success {
             script {
                 echo "Build & Tests passed. Merging branch automatically."
             }
         }
-        failure { // Actions to perform if the pipeline fails
+        failure {
             script {
                 echo "Build or Tests failed. NOT merging to main."
             }
         }
-        always { // Actions that always run, regardless of success or failure
+        always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy' // Load Slack notification script
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL) // Construct message
-                    slack.sendSlackNotification(message, "good") // Send Slack notification
+                    def slack = load 'slack_notifications.groovy'
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
+                    slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}" // Handle Slack errors
+                    echo "Error sending Slack notification: ${e.message}"
                 }
             }
         }
     }
 }
-
