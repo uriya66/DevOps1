@@ -1,30 +1,16 @@
-
 pipeline {
     agent any
 
     options {
-        disableConcurrentBuilds() // No concurrent builds allowed
+        disableConcurrentBuilds() // Prevent multiple builds from running at the same time
     }
 
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git' // The repository URL
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create feature branch with the build number
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Generate a unique feature branch name
     }
 
     stages {
-        stage('Skip Redundant Merge Builds') {
-            steps {
-                script {
-                    def lastCommitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-                    if (lastCommitMessage.startsWith("Merge remote-tracking branch")) {
-                        echo "Skipping build: This is a merge commit."
-                        currentBuild.result = 'SUCCESS'
-                        error("Stopping Pipeline: Merge commit detected.")
-                    }
-                }
-            }
-        }
-
         stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
@@ -46,15 +32,29 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                echo "Checking out the repository."
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/main']],  // Fetch the main branch from remote
-                    userRemoteConfigs: [[
-                        url: REPO_URL,  // Use the defined repository URL
-                        credentialsId: 'Jenkins-GitHub-SSH' // Use SSH credentials
-                    ]]
-                ])
+                script {
+                    echo "Checking out the repository."
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/main']], // Fetch the main branch from remote
+                        userRemoteConfigs: [[
+                            url: REPO_URL, // Use the defined repository URL
+                            credentialsId: 'Jenkins-GitHub-SSH' // Use SSH credentials
+                        ]]
+                    ])
+                    
+                    // Ensure GIT_BRANCH is set correctly without "origin/"
+                    env.GIT_BRANCH = sh(
+                        script: """
+                            branch_name=\$(git rev-parse --abbrev-ref HEAD) // Get the current branch name
+                            branch_name=\${branch_name#origin/} // Remove "origin/" prefix if it exists
+                            echo \$branch_name // Print the cleaned branch name
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    echo "DEBUG: Final GIT_BRANCH = ${env.GIT_BRANCH}" // Print the final branch name
+                }
             }
         }
 
@@ -66,10 +66,16 @@ pipeline {
             }
             steps {
                 script {
-                    git checkout -b ${BRANCH_NAME} // Create a new feature branch
-                    git push origin ${BRANCH_NAME} // Push the new branch to remote
-                    env.GIT_BRANCH = BRANCH_NAME // Update GIT_BRANCH to the newly created branch
+                    echo "Creating a new feature branch: ${BRANCH_NAME}"
 
+                    withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
+                        sh """
+                            git checkout -b ${BRANCH_NAME} // Create a new feature branch
+                            git push origin ${BRANCH_NAME} // Push the new branch to remote
+                        """
+                    }
+
+                    env.GIT_BRANCH = BRANCH_NAME // Update GIT_BRANCH to the newly created branch
                     echo "DEBUG: Updated GIT_BRANCH = ${env.GIT_BRANCH}" // Print the updated branch name
                 }
             }
@@ -102,30 +108,29 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    def cleanBranch = env.GIT_BRANCH?.replace("origin/", "") ?: ""
                     echo "DEBUG: Checking merge condition: env.GIT_BRANCH=${env.GIT_BRANCH}" // Print the branch before merging
-                    return cleanBranch.startsWith("feature-")
+                    return env.GIT_BRANCH.startsWith("feature-") || env.GIT_BRANCH == "feature-test" // Merge only feature branches or "feature-test"
                 }
             }
             steps {
                 script {
                     echo "Checking if all tests passed before merging..."
 
-                    def cleanBranch = env.GIT_BRANCH.replace("origin/", "")
-                   
-                    echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
+                    if (currentBuild.result == null || currentBuild.result == 'SUCCESS') { // Merge only if the build was successful
+                        echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
 
-                    withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
-                        sh """
-                            git checkout main // Switch to the main branch
-                            git pull origin main // Pull the latest changes from main
-                            git merge --no-ff ${cleanBranch} || echo "Nothing to merge" //
-                            git push origin main // Push the merged changes to remote
-                        """
-                    }
-                } else {
+                        withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
+                            sh """
+                                git checkout main // Switch to the main branch
+                                git pull origin main // Pull the latest changes from main
+                                git merge --no-ff ${env.GIT_BRANCH} // Merge the feature branch into main
+                                git push origin main // Push the merged changes to remote
+                            """
+                        }
+                    } else {
                         echo "Tests failed, skipping merge!" // Do not merge if tests failed
-                  }
+                    }
+                }
             }
         }
     }
@@ -133,25 +138,26 @@ pipeline {
     post {
         success {
             script {
-                echo "Build & Tests passed. Merging branch automatically."
+                echo "Build & Tests passed. Merging branch automatically." // Log success message
             }
         }
         failure {
             script {
-                echo "Build or Tests failed. NOT merging to main."
+                echo "Build or Tests failed. NOT merging to main." // Log failure message
             }
         }
         always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy'
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
-                    slack.sendSlackNotification(message, "good")
+                    def slack = load 'slack_notifications.groovy' // Load the Slack notification script
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL) // Construct a message with build details
+                    slack.sendSlackNotification(message, "good") // Send Slack notification on success
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}"
+                    echo "Error sending Slack notification: ${e.message}" // Log Slack notification errors
                 }
             }
         }
     }
 }
+
 
