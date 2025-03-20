@@ -2,13 +2,13 @@ pipeline {
     agent any  // Run the pipeline on any available Jenkins agent
 
     options {
-        disableConcurrentBuilds() // Prevents multiple builds from running simultaneously
-        skipStagesAfterUnstable() // Stops the pipeline if any stage fails
+        disableConcurrentBuilds() // Prevent multiple builds from running simultaneously
+        skipStagesAfterUnstable() // Stop pipeline if a stage fails
     }
 
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub repository URL
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create a unique feature branch for each build
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Generate a unique feature branch per build
     }
 
     stages {
@@ -53,8 +53,8 @@ pipeline {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) { // Ensure SSH authentication persists
                         sh """
-                            git checkout -b ${BRANCH_NAME} // Create a new branch
-                            git push origin ${BRANCH_NAME} // Push the new branch to GitHub
+                            git checkout -b ${BRANCH_NAME}  // Create a new feature branch
+                            git push origin ${BRANCH_NAME}  // Push the feature branch to GitHub
                         """
                     }
                     env.GIT_BRANCH = BRANCH_NAME // Store the branch name in environment variables
@@ -67,10 +67,10 @@ pipeline {
                 sh """
                     set -e
                     echo "Setting up Python virtual environment."
-                    if [ ! -d "venv" ]; then python3 -m venv venv; fi // Create a virtual environment if it does not exist
-                    . venv/bin/activate // Activate the virtual environment
-                    venv/bin/python -m pip install --upgrade pip // Upgrade pip
-                    venv/bin/python -m pip install flask requests pytest gunicorn // Install dependencies
+                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  // Create a virtual environment if it does not exist
+                    . venv/bin/activate  // Activate the virtual environment
+                    venv/bin/python -m pip install --upgrade pip  // Upgrade pip
+                    venv/bin/python -m pip install flask requests pytest gunicorn  // Install dependencies
                 """
             }
         }
@@ -80,8 +80,8 @@ pipeline {
                 sh """
                     set -e
                     echo "Running API tests."
-                    . venv/bin/activate // Activate virtual environment
-                    venv/bin/python -m pytest test_app.py // Run all tests
+                    . venv/bin/activate  // Activate virtual environment
+                    venv/bin/python -m pytest test_app.py  // Run all tests
                 """
             }
         }
@@ -89,10 +89,9 @@ pipeline {
         stage('Merge to Main') { // Merge the feature branch into main if tests pass
             when {
                 expression {
-                    // Extract the branch name and check if it starts with 'feature-'
-                    def branchName = env.GIT_BRANCH.replace("origin/", "")
+                    def branchName = env.GIT_BRANCH.replace("origin/", "") // Extract branch name
                     echo "Current Branch after cleanup: ${branchName}"
-                    return branchName.startsWith("feature-") // Only merge if it is a feature branch
+                    return branchName.startsWith("feature-")  // Only merge if it is a feature branch
                 }
             }
             steps {
@@ -102,13 +101,13 @@ pipeline {
                     if (currentBuild.result == null || currentBuild.result == 'SUCCESS') { // Ensure the build was successful
                         echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
                         sh """
-                            git checkout main // Switch to the main branch
-                            git pull origin main // Fetch the latest changes from main
-                            git merge --no-ff ${env.GIT_BRANCH} // Merge the feature branch
-                            git push origin main // Push the updated main branch to GitHub
+                            git checkout main  // Switch to the main branch
+                            git pull origin main  // Fetch the latest changes from main
+                            git merge --no-ff ${env.GIT_BRANCH}  // Merge the feature branch
+                            git push origin main  // Push the updated main branch to GitHub
                         """
                     } else {
-                        echo "Tests failed, skipping merge!" // Do not merge if tests failed
+                        echo "Tests failed, skipping merge!"  // Do not merge if tests failed
                     }
                 }
             }
