@@ -77,7 +77,8 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH.startsWith("feature-")
+                    def cleanBranch = env.GIT_BRANCH?.replace("origin/", "") ?: ""
+                    return cleanBranch.startsWith("feature-")
                 }
             }
             steps {
