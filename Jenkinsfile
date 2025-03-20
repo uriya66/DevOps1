@@ -42,8 +42,10 @@ pipeline {
                             credentialsId: 'Jenkins-GitHub-SSH'
                         ]]
                     ])
-                    env.GIT_BRANCH = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                    echo "Current Git branch: ${env.GIT_BRANCH}"
+                    
+                    // Fix the branch name so that it does not contain "origin/"
+                    env.GIT_BRANCH = sh(script: "git rev-parse --abbrev-ref HEAD | sed 's|origin/||'", returnStdout: true).trim()
+                    echo "Current Git branch after fix: ${env.GIT_BRANCH}"
                 }
             }
         }
