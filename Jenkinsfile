@@ -2,21 +2,21 @@ pipeline {
     agent any  // Run the pipeline on any available Jenkins agent
 
     options {
-        disableConcurrentBuilds() // Prevent multiple builds running at the same time
+        disableConcurrentBuilds() // Prevent multiple builds from running simultaneously
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub repository URL
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create a unique feature branch per build
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define GitHub repository URL
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Ensure branch name is globally available
     }
 
     stages {
-        stage('Start SSH Agent') { // Start SSH agent for authentication
+        stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
                         echo "Starting SSH Agent and verifying authentication."
-                        sh "ssh-add -l" // List SSH keys
+                        sh "ssh-add -l"
                         sh """
                             if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
                                 echo "SSH Connection successful."
@@ -30,7 +30,7 @@ pipeline {
             }
         }
 
-        stage('Checkout') { // Checkout the main branch
+        stage('Checkout') {
             steps {
                 script {
                     echo "Checking out the repository."
@@ -46,27 +46,29 @@ pipeline {
             }
         }
 
-        stage('Create Feature Branch') { // Create and push a feature branch
+        stage('Create Feature Branch') {
             when {
                 expression {
-                    return env.GIT_BRANCH == null || !env.GIT_BRANCH.startsWith("feature-") // Only create a feature branch if not already running on one
+                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false) // Only create if not already a feature branch
                 }
             }
             steps {
                 script {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"
+
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${BRANCH_NAME}  // Create a new feature branch
-                            git push origin ${BRANCH_NAME}  // Push it to GitHub
+                            git checkout -b ${BRANCH_NAME}
+                            git push origin ${BRANCH_NAME}
                         """
                     }
+
                     env.GIT_BRANCH = BRANCH_NAME
                 }
             }
         }
 
-        stage('Build') { // Install dependencies
+        stage('Build') {
             steps {
                 sh """
                     set -e
@@ -79,7 +81,7 @@ pipeline {
             }
         }
 
-        stage('Test') { // Run tests
+        stage('Test') {
             steps {
                 sh """
                     set -e
@@ -90,24 +92,25 @@ pipeline {
             }
         }
 
-        stage('Merge to Main') { // Merge the feature branch if tests pass
+        stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH && env.GIT_BRANCH.startsWith("feature-") // Only merge if it is a feature branch
+                    return env.GIT_BRANCH?.startsWith("feature-") ?: false // Merge only if it’s a feature branch
                 }
             }
             steps {
                 script {
                     echo "Checking if all tests passed before merging..."
-                    
+
                     if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
                         echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
+
                         withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                             sh """
-                                git checkout main  // Switch to main
-                                git pull origin main  // Fetch latest changes
-                                git merge --no-ff ${env.GIT_BRANCH}  // Merge the feature branch
-                                git push origin main  // Push to GitHub
+                                git checkout main
+                                git pull origin main
+                                git merge --no-ff ${env.GIT_BRANCH}
+                                git push origin main
                             """
                         }
                     } else {
@@ -119,24 +122,24 @@ pipeline {
     }
 
     post {
-        success { // Actions after successful pipeline
+        success {
             script {
                 echo "Build & Tests passed. Merging branch automatically."
             }
         }
-        failure { // Actions if pipeline fails
+        failure {
             script {
                 echo "Build or Tests failed. NOT merging to main."
             }
         }
-        always { // Actions that always run
+        always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy' // Load Slack notification script
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL) // Construct Slack message
-                    slack.sendSlackNotification(message, "good") // Send Slack notification
+                    def slack = load 'slack_notifications.groovy'
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
+                    slack.sendSlackNotification(message, "good")
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}" // Handle Slack errors
+                    echo "Error sending Slack notification: ${e.message}"
                 }
             }
         }
