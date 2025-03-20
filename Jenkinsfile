@@ -5,10 +5,6 @@ pipeline {
         disableConcurrentBuilds() // Prevent multiple builds running at the same time
     }
 
-    triggers {
-        // Remove pollSCM to avoid unnecessary builds, rely only on GitHub Webhook
-    }
-
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub repository URL
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create a unique feature branch per build
