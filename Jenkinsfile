@@ -11,7 +11,7 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
-                        echo "Starting SSH Agent, and verifying authentication."
+                        echo "Starting SSH Agent and verifying authentication."
                         sh "echo 'SSH_AUTH_SOCK is: $SSH_AUTH_SOCK'"
                         sh "ssh-add -l"
                         sh """
