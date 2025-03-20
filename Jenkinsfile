@@ -6,8 +6,8 @@ pipeline {
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git' // Git repository URL
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Dynamic feature branch name
     }
 
     stages {
@@ -36,16 +36,23 @@ pipeline {
                     echo "Checking out the repository."
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: '*/main']],
+                        branches: [[name: '*/main']], // Fetch the main branch
                         userRemoteConfigs: [[
                             url: REPO_URL,
                             credentialsId: 'Jenkins-GitHub-SSH'
                         ]]
                     ])
                     
-                    // ✅ Ensure GIT_BRANCH is correctly set without "origin/"
-                    env.GIT_BRANCH = sh(script: "git symbolic-ref --short HEAD", returnStdout: true).trim()
-                    echo "DEBUG: Current Git branch after fix: ${env.GIT_BRANCH}"
+                    // Get the correct branch name dynamically
+                    env.GIT_BRANCH = sh(
+                        script: """
+                            branch_name=\$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD)
+                            echo \$branch_name
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    echo "DEBUG: Corrected GIT_BRANCH = ${env.GIT_BRANCH}"
                 }
             }
         }
@@ -53,7 +60,7 @@ pipeline {
         stage('Create Feature Branch') {
             when {
                 expression {
-                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false)
+                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false) // Only create if not already a feature branch
                 }
             }
             steps {
@@ -68,7 +75,7 @@ pipeline {
                     }
 
                     env.GIT_BRANCH = BRANCH_NAME
-                    echo "DEBUG: Updated GIT_BRANCH: ${env.GIT_BRANCH}"
+                    echo "DEBUG: Updated GIT_BRANCH = ${env.GIT_BRANCH}"
                 }
             }
         }
