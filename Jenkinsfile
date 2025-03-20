@@ -2,24 +2,25 @@ pipeline {
     agent any  // Run the pipeline on any available Jenkins agent
 
     options {
-        disableConcurrentBuilds() // Prevents duplicate children running
+        disableConcurrentBuilds() // Prevent multiple builds running at the same time
     }
+
     triggers {
-        pollSCM('* * * * *') // Will only run on code changes, not Merge
+        // Remove pollSCM to avoid unnecessary builds, rely only on GitHub Webhook
     }
+
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define the GitHub repository URL
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub repository URL
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create a unique feature branch per build
     }
 
     stages {
-        stage('Start SSH Agent') {
+        stage('Start SSH Agent') { // Start SSH agent for authentication
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
                         echo "Starting SSH Agent and verifying authentication."
-                        sh "echo 'SSH_AUTH_SOCK is: $SSH_AUTH_SOCK'"
-                        sh "ssh-add -l"
+                        sh "ssh-add -l" // List SSH keys
                         sh """
                             if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
                                 echo "SSH Connection successful."
@@ -33,7 +34,7 @@ pipeline {
             }
         }
 
-        stage('Checkout') {
+        stage('Checkout') { // Checkout the main branch
             steps {
                 script {
                     echo "Checking out the repository."
@@ -49,14 +50,19 @@ pipeline {
             }
         }
 
-        stage('Create Feature Branch') {
+        stage('Create Feature Branch') { // Create and push a feature branch
+            when {
+                expression {
+                    return env.GIT_BRANCH == null || !env.GIT_BRANCH.startsWith("feature-") // Only create a feature branch if not already running on one
+                }
+            }
             steps {
                 script {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${BRANCH_NAME}
-                            git push origin ${BRANCH_NAME}
+                            git checkout -b ${BRANCH_NAME}  // Create a new feature branch
+                            git push origin ${BRANCH_NAME}  // Push it to GitHub
                         """
                     }
                     env.GIT_BRANCH = BRANCH_NAME
@@ -64,7 +70,7 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build') { // Install dependencies
             steps {
                 sh """
                     set -e
@@ -77,7 +83,7 @@ pipeline {
             }
         }
 
-        stage('Test') {
+        stage('Test') { // Run tests
             steps {
                 sh """
                     set -e
@@ -88,25 +94,26 @@ pipeline {
             }
         }
 
-        stage('Merge to Main') {
+        stage('Merge to Main') { // Merge the feature branch if tests pass
             when {
                 expression {
-                    def branchName = env.GIT_BRANCH.replace("origin/", "")
-                    echo "Current Branch after cleanup: ${branchName}"
-                    return branchName.startsWith("feature-")
+                    return env.GIT_BRANCH && env.GIT_BRANCH.startsWith("feature-") // Only merge if it is a feature branch
                 }
             }
             steps {
                 script {
                     echo "Checking if all tests passed before merging..."
+                    
                     if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
                         echo "Tests passed, merging ${env.GIT_BRANCH} back to main..."
-                        sh """
-                            git checkout main
-                            git pull origin main
-                            git merge --no-ff ${env.GIT_BRANCH}
-                            git push origin main
-                        """
+                        withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
+                            sh """
+                                git checkout main  // Switch to main
+                                git pull origin main  // Fetch latest changes
+                                git merge --no-ff ${env.GIT_BRANCH}  // Merge the feature branch
+                                git push origin main  // Push to GitHub
+                            """
+                        }
                     } else {
                         echo "Tests failed, skipping merge!"
                     }
@@ -116,26 +123,27 @@ pipeline {
     }
 
     post {
-        success {
+        success { // Actions after successful pipeline
             script {
                 echo "Build & Tests passed. Merging branch automatically."
             }
         }
-        failure {
+        failure { // Actions if pipeline fails
             script {
                 echo "Build or Tests failed. NOT merging to main."
             }
         }
-        always {
+        always { // Actions that always run
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy'
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
-                    slack.sendSlackNotification(message, "good")
+                    def slack = load 'slack_notifications.groovy' // Load Slack notification script
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL) // Construct Slack message
+                    slack.sendSlackNotification(message, "good") // Send Slack notification
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}"
+                    echo "Error sending Slack notification: ${e.message}" // Handle Slack errors
                 }
             }
         }
     }
 }
+
