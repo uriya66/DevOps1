@@ -63,6 +63,7 @@ pipeline {
                         """
                     }
 
+                    // ✅ **תיקון קריטי - הגדרת env.GIT_BRANCH מחוץ ל-Shell**
                     env.GIT_BRANCH = BRANCH_NAME
                 }
             }
@@ -95,7 +96,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith("feature-") ?: false // Merge only if it’s a feature branch
+                    return (env.GIT_BRANCH?.startsWith("feature-") ?: false) || env.GIT_BRANCH == "feature-test" // Merge only if it’s a feature branch
                 }
             }
             steps {
