@@ -8,7 +8,8 @@ pipeline {
 
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub repository URL
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Generate a unique feature branch per build
+        BUILD_ID = env.BUILD_NUMBER ?: "manual" // Ensure there's always a build ID
+        BRANCH_NAME = "feature-${BUILD_ID}" // Generate a unique feature branch per build
     }
 
     stages {
@@ -51,6 +52,9 @@ pipeline {
             steps {
                 script {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"
+                    if (!BRANCH_NAME || BRANCH_NAME == "feature-") {
+                        error "Invalid branch name: ${BRANCH_NAME}"
+                    }
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) { // Ensure SSH authentication persists
                         sh """
                             git checkout -b ${BRANCH_NAME}  // Create a new feature branch
@@ -89,7 +93,8 @@ pipeline {
         stage('Merge to Main') { // Merge the feature branch into main if tests pass
             when {
                 expression {
-                    def branchName = env.GIT_BRANCH.replace("origin/", "") // Extract branch name
+                    // Extract branch name and check if it starts with 'feature-'
+                    def branchName = env.GIT_BRANCH.replace("origin/", "")
                     echo "Current Branch after cleanup: ${branchName}"
                     return branchName.startsWith("feature-")  // Only merge if it is a feature branch
                 }
