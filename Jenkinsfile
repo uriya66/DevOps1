@@ -43,9 +43,9 @@ pipeline {
                         ]]
                     ])
                     
-                    // Fix the branch name so that it does not contain "origin/"
-                    env.GIT_BRANCH = sh(script: "git rev-parse --abbrev-ref HEAD | sed 's|origin/||'", returnStdout: true).trim()
-                    echo "Current Git branch after fix: ${env.GIT_BRANCH}"
+                    // ✅ Ensure GIT_BRANCH is correctly set without "origin/"
+                    env.GIT_BRANCH = sh(script: "git symbolic-ref --short HEAD", returnStdout: true).trim()
+                    echo "DEBUG: Current Git branch after fix: ${env.GIT_BRANCH}"
                 }
             }
         }
@@ -68,7 +68,7 @@ pipeline {
                     }
 
                     env.GIT_BRANCH = BRANCH_NAME
-                    echo "Updated GIT_BRANCH: ${env.GIT_BRANCH}"
+                    echo "DEBUG: Updated GIT_BRANCH: ${env.GIT_BRANCH}"
                 }
             }
         }
@@ -100,7 +100,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    echo "Checking merge condition: env.GIT_BRANCH=${env.GIT_BRANCH}"
+                    echo "DEBUG: Checking merge condition: env.GIT_BRANCH=${env.GIT_BRANCH}"
                     return env.GIT_BRANCH.startsWith("feature-") || env.GIT_BRANCH == "feature-test"
                 }
             }
