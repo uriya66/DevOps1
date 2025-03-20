@@ -1,6 +1,12 @@
 pipeline {
     agent any  // Run the pipeline on any available Jenkins agent
 
+    options {
+        disableConcurrentBuilds() // Prevents duplicate children running
+    }
+    triggers {
+        pollSCM('* * * * *') // Will only run on code changes, not Merge
+    }
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define the GitHub repository URL
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Create a unique feature branch per build
@@ -133,4 +139,3 @@ pipeline {
         }
     }
 }
-
