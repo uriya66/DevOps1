@@ -60,8 +60,8 @@ pipeline {
 
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh '''
-                            git checkout -b ${BRANCH_NAME}  // Create new local feature branch
-                            git push origin ${BRANCH_NAME}  // Push it to GitHub
+                            git checkout -b ${BRANCH_NAME}  # Create new local feature branch
+                            git push origin ${BRANCH_NAME}  # Push it to GitHub
                         '''
                     }
 
