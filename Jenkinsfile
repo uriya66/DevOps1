@@ -8,6 +8,7 @@ pipeline {
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define GitHub repository URL
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Ensure branch name is globally available
+        GIT_BRANCH = "feature-${env.BUILD_NUMBER}"  // Force GIT_BRANCH to always be a new feature branch, regardless of source branch
     }
 
     stages {
@@ -47,23 +48,27 @@ pipeline {
         }
 
         stage('Create Feature Branch') {
-            when {
-                expression {
-                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false) // Only create if not already a feature branch
-                }
-            }
             steps {
                 script {
                     echo "Creating a new feature branch: ${BRANCH_NAME}"
 
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${BRANCH_NAME}
-                            git push origin ${BRANCH_NAME}
+                            git checkout -b ${BRANCH_NAME}   # Create new feature branch from main
+                            git push origin ${BRANCH_NAME}   # Push the new branch to GitHub
                         """
                     }
 
-                    env.GIT_BRANCH = BRANCH_NAME
+                    // Update Jenkins environment variable to track current feature branch
+                    env.GIT_BRANCH = BRANCH_NAME  // Explicitly set GIT_BRANCH to the new branch name
+                }
+
+                // Stop further stages if we just created the branch
+                // This forces Jenkins to exit this pipeline and re-trigger from webhook on new branch
+                script {
+                    currentBuild.result = 'SUCCESS'   // Mark build as successful
+                    echo "Feature branch created. Exiting current pipeline to re-trigger from new branch..."
+                    return                          // Exit pipeline here to allow new build to trigger on new branch
                 }
             }
         }
@@ -107,10 +112,12 @@ pipeline {
 
                         withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                             sh """
-                                git checkout main
-                                git pull origin main
-                                git merge --no-ff ${env.GIT_BRANCH}
-                                git push origin main
+                                git config user.name "jenkins"   # Set git username for merging
+                                git config user.email "jenkins@example.com"  # Set git email
+                                git checkout main                # Switch to main branch
+                                git pull origin main             # Ensure main is up-to-date
+                                git merge --no-ff ${env.GIT_BRANCH}   # Merge feature branch
+                                git push origin main             # Push merge result to GitHub
                             """
                         }
                     } else {
@@ -135,11 +142,11 @@ pipeline {
         always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy'
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)
-                    slack.sendSlackNotification(message, "good")
+                    def slack = load 'slack_notifications.groovy'   // Load external Slack script for notifications
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL) // Create message body
+                    slack.sendSlackNotification(message, "good")    // Send success/failure notification
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}"
+                    echo "Error sending Slack notification: ${e.message}" // Handle Slack errors silently
                 }
             }
         }
