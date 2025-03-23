@@ -47,7 +47,7 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Add deploy status if provided
         if (deploySuccess != null) {
             if (!mergeSuccess) {
-                message += "\n⏭️ Deploy skipped due to merge failure."
+                message += "\nDeploy skipped due to merge failure."
             } else {
                 message += "\n" + (deploySuccess ? "✅ Deploy succeeded." : "❌ Deploy failed.")
             }

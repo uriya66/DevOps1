@@ -94,74 +94,74 @@ pipeline {
     post {
         success {
             script {
-                echo "Build and tests passed successfully."  // Log success
+                echo "Build and tests passed successfully."  // Log success message after successful stages
 
-                if (env.GIT_BRANCH?.startsWith("feature-")) {  // Check if the branch is a feature branch
-                    echo "Merging ${env.GIT_BRANCH} into main..."  // Log merge step
+                if (env.GIT_BRANCH?.startsWith("feature-")) {  // Check if the current branch is a feature branch
+                    echo "Merging ${env.GIT_BRANCH} into main..."  // Log start of merge step
 
-                    def mergeSuccess = true  // Variable to track merge status
-                    def deploySuccess = true  // Variable to track deploy status
-                    def slack = load 'slack_notifications.groovy'  // Load Slack helper script
+                    def mergeSuccess = true  // Variable to store merge result
+                    def deploySuccess = true  // Variable to store deploy result
+                    def slack = load 'slack_notifications.groovy'  // Load shared Slack utility script
 
                     try {
-                        withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {  // Provide SSH environment to shell
+                        withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {  // Provide SSH agent environment to shell
                             sh '''
-                                git config user.name "jenkins"  # Set Git username
-                                git config user.email "jenkins@example.com"  # Set Git email
+                                git config user.name "jenkins"  # Set Git username for merge
+                                git config user.email "jenkins@example.com"  # Set Git email for merge
                                 git checkout main  # Switch to main branch
-                                git pull origin main  # Pull latest changes
-                                git merge --no-ff ${GIT_BRANCH}  # Merge feature branch into main
-                                git push origin main  # Push merged changes
+                                git pull origin main  # Get latest code from origin
+                                git merge --no-ff ${GIT_BRANCH}  # Merge feature branch without fast-forward
+                                git push origin main  # Push merged changes to origin
                             '''
                         }
-                        echo "Merge completed successfully."  // Log merge success
+                        echo "Merge completed successfully."  // Log success of merge
                     } catch (Exception mergeError) {
-                        echo "Merge failed: ${mergeError.message}"  // Log merge failure
-                        mergeSuccess = false  // Update merge status
+                        echo "Merge failed: ${mergeError.message}"  // Log merge error
+                        mergeSuccess = false  // Mark merge as failed
                     }
 
-                    if (mergeSuccess) {  // Only continue to deploy if merge succeeded
+                    if (mergeSuccess) {  // Proceed to deploy only if merge succeeded
                         try {
-                            echo "Starting deployment after merge..."  // Log deploy start
+                            echo "Starting deployment after merge..."  // Log start of deploy
                             sh '''
-                                chmod +x deploy.sh  # Ensure deploy script is executable
-                                ./deploy.sh  # Execute deploy script
+                                chmod +x deploy.sh  # Ensure the deploy script is executable
+                                ./deploy.sh  # Execute the deployment script
                             '''
-                            echo "Deployment script executed successfully."  // Log deploy success
+                            echo "Deployment script executed successfully."  // Log successful deployment
                         } catch (Exception deployError) {
-                            echo "Deployment failed: ${deployError.message}"  // Log deploy failure
-                            deploySuccess = false  // Update deploy status
+                            echo "Deployment failed: ${deployError.message}"  // Log deployment error message
+                            deploySuccess = false  // Mark deploy as failed
                         }
                     }
 
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, mergeSuccess, deploySuccess)  // Build Slack message with merge/deploy status
-                    def statusColor = (mergeSuccess && deploySuccess) ? "good" : "danger"  // Determine Slack color based on results
-                    slack.sendSlackNotification(message, statusColor)  // Send Slack notification with status
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, mergeSuccess, deploySuccess)  // Build Slack message with status flags
+                    def statusColor = (mergeSuccess && deploySuccess) ? "good" : "danger"  // Determine Slack message color
+                    slack.sendSlackNotification(message, statusColor)  // Send detailed Slack message
                 }
             }
         }
         failure {
             script {
-                echo "Build or tests failed."  // Log general failure
+                echo "Build or tests failed."  // Log general failure message
                 try {
-                    def slack = load 'slack_notifications.groovy'  // Load Slack helper script
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, false, false)  // Compose failure message with merge/deploy = false
-                    slack.sendSlackNotification(message, "danger")  // Send failure message
+                    def slack = load 'slack_notifications.groovy'  // Load Slack utility script
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, false, false)  // Build failure message
+                    slack.sendSlackNotification(message, "danger")  // Send Slack alert for failure
                 } catch (Exception e) {
-                    echo "Error sending Slack failure message: ${e.message}"  // Log Slack error
+                    echo "Error sending Slack failure message: ${e.message}"  // Log Slack failure
                 }
             }
         }
         always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy'  // Load Slack helper script
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Compose generic build message
-                    slack.sendSlackNotification(message, "good")  // Send Slack message without merge/deploy status
+                    def slack = load 'slack_notifications.groovy'  // Load Slack utility script
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Build generic Slack message (no merge/deploy info)
+                    slack.sendSlackNotification(message, "good")  // Send message if not already sent
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}"  // Log Slack error
+                    echo "Error sending Slack notification: ${e.message}"  // Log error during Slack send
                 }
             }
         }
     }
-}
+
