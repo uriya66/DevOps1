@@ -134,9 +134,9 @@ pipeline {
                         }
                     }
 
-                    def message = slack.constructSlackResultMessage(env.BUILD_NUMBER, env.BUILD_URL, mergeSuccess, deploySuccess)  // Build Slack message with merge/deploy status
-                    def statusColor = (mergeSuccess && deploySuccess) ? "good" : "danger"  // Determine Slack color
-                    slack.sendSlackNotification(message, statusColor)  // Send Slack notification
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, mergeSuccess, deploySuccess)  // Build Slack message with merge/deploy status
+                    def statusColor = (mergeSuccess && deploySuccess) ? "good" : "danger"  // Determine Slack color based on results
+                    slack.sendSlackNotification(message, statusColor)  // Send Slack notification with status
                 }
             }
         }
@@ -144,8 +144,8 @@ pipeline {
             script {
                 echo "Build or tests failed."  // Log general failure
                 try {
-                    def slack = load 'slack_notifications.groovy'  // Load Slack helper
-                    def message = slack.constructSlackResultMessage(env.BUILD_NUMBER, env.BUILD_URL, false, false)  // Compose failure message
+                    def slack = load 'slack_notifications.groovy'  // Load Slack helper script
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, false, false)  // Compose failure message with merge/deploy = false
                     slack.sendSlackNotification(message, "danger")  // Send failure message
                 } catch (Exception e) {
                     echo "Error sending Slack failure message: ${e.message}"  // Log Slack error
@@ -155,9 +155,9 @@ pipeline {
         always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy'  // Load Slack helper
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Compose base message
-                    slack.sendSlackNotification(message, "good")  // Send generic notification
+                    def slack = load 'slack_notifications.groovy'  // Load Slack helper script
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Compose generic build message
+                    slack.sendSlackNotification(message, "good")  // Send Slack message without merge/deploy status
                 } catch (Exception e) {
                     echo "Error sending Slack notification: ${e.message}"  // Log Slack error
                 }
@@ -165,4 +165,3 @@ pipeline {
         }
     }
 }
-
