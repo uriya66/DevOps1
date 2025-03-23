@@ -7,13 +7,12 @@ pipeline {
 
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Define GitHub repository URL
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Define a unique feature branch using build number
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Generate a unique feature branch name for this build
     }
 
     stages {
         stage('Start SSH Agent') {
             steps {
-                // Start SSH agent to authenticate with GitHub using Jenkins credentials
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
                         echo "Starting SSH Agent and verifying authentication."
@@ -35,7 +34,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out the repository."
-                    // Clone the main branch using secure SSH access
+                    // Checkout the latest code from the main branch
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: '*/main']],
@@ -51,7 +50,7 @@ pipeline {
         stage('Create Feature Branch') {
             when {
                 expression {
-                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false) // Only create branch if it doesn't already exist
+                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false)  // Only create if not already a feature branch
                 }
             }
             steps {
@@ -60,12 +59,12 @@ pipeline {
 
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh '''
-                            git checkout -b ${BRANCH_NAME}  # Create new local feature branch
-                            git push origin ${BRANCH_NAME}  # Push it to GitHub
+                            git checkout -b ${BRANCH_NAME}  # Create new feature branch
+                            git push origin ${BRANCH_NAME}  # Push new branch to remote
                         '''
                     }
 
-                    env.GIT_BRANCH = BRANCH_NAME  // Set feature branch name for later usage
+                    env.GIT_BRANCH = BRANCH_NAME  // Set this for use in later pipeline stages
                 }
             }
         }
@@ -73,12 +72,12 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                    set -e  # Exit if any command fails
+                    set -e  # Exit immediately if a command exits with a non-zero status
                     echo "Setting up Python virtual environment."
-                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  # Create venv if missing
-                    . venv/bin/activate  # Activate Python virtual environment
+                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  # Create venv if it doesn't exist
+                    . venv/bin/activate  # Activate virtual environment
                     venv/bin/python -m pip install --upgrade pip  # Upgrade pip
-                    venv/bin/python -m pip install flask requests pytest gunicorn  # Install required packages
+                    venv/bin/python -m pip install flask requests pytest gunicorn  # Install dependencies
                 '''
             }
         }
@@ -86,13 +85,13 @@ pipeline {
         stage('Test') {
             steps {
                 sh '''
-                    set -e  # Stop if any command fails
+                    set -e  # Stop on first error
                     echo "Starting Flask app for testing..."
-                    . venv/bin/activate  # Activate virtual environment
-                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &   # Start the app with Gunicorn in background
-                    sleep 3  # Give server time to start
+                    . venv/bin/activate
+                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &  # Launch the app
+                    sleep 3  # Wait for server to start
                     echo "Running API tests."
-                    venv/bin/python -m pytest test_app.py  # Run test suite with pytest
+                    venv/bin/python -m pytest test_app.py  # Run tests
                 '''
             }
         }
@@ -101,8 +100,8 @@ pipeline {
             steps {
                 sh '''
                     echo "Creating project backup..."
-                    chmod +x backup.sh  # Ensure the backup script is executable
-                    ./backup.sh  # Run the backup script
+                    chmod +x backup.sh  # Make sure script is executable
+                    ./backup.sh  # Run backup script
                 '''
             }
         }
@@ -110,7 +109,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith("feature-") ?: false  // Only merge if it's a feature branch
+                    return env.GIT_BRANCH?.startsWith("feature-") ?: false  // Merge only if we're in a feature branch
                 }
             }
             steps {
@@ -118,20 +117,20 @@ pipeline {
                     echo "Checking if all tests passed before merging..."
 
                     if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
-                        echo "Tests passed, merging ${env.GIT_BRANCH} into main."
+                        echo "Tests passed, merging ${env.GIT_BRANCH} into main..."
 
                         withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
-                            sh '''
-                                git config user.name "jenkins"  # Set Git user for automated commit
+                            sh """
+                                git config user.name "jenkins"  # Set Git user
                                 git config user.email "jenkins@example.com"  # Set Git email
                                 git checkout main  # Switch to main branch
-                                git pull origin main  # Update local main
-                                git merge --no-ff ${GIT_BRANCH}  # Merge without fast-forward
-                                git push origin main  # Push merge to GitHub
-                            '''
+                                git pull origin main  # Pull latest main
+                                git merge --no-ff ${env.GIT_BRANCH}  # Merge feature branch
+                                git push origin main  # Push merged result
+                            """
                         }
                     } else {
-                        echo "Tests failed, skipping merge."
+                        echo "Tests failed, skipping merge!"
                     }
                 }
             }
@@ -140,7 +139,7 @@ pipeline {
         stage('Deploy') {
             when {
                 expression {
-                    return env.GIT_BRANCH == 'main'  // Only deploy if on main branch
+                    return env.GIT_BRANCH == 'main'  // Deploy only if we are on main
                 }
             }
             steps {
@@ -148,7 +147,7 @@ pipeline {
                     echo "Starting deployment..."
                     sh '''
                         chmod +x deploy.sh  # Ensure deploy script is executable
-                        ./deploy.sh  # Run the deployment script
+                        ./deploy.sh  # Run the deploy script
                     '''
                 }
             }
@@ -169,13 +168,14 @@ pipeline {
         always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy'  // Load Slack script
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Build message content
-                    slack.sendSlackNotification(message, "good")  // Send Slack notification
+                    def slack = load 'slack_notifications.groovy'  // Load external Slack notifier
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Create message
+                    slack.sendSlackNotification(message, "good")  // Send to Slack
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}"  // Log Slack errors but do not fail pipeline
+                    echo "Error sending Slack notification: ${e.message}"  // Don't fail build for notification error
                 }
             }
         }
     }
 }
+
