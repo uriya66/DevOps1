@@ -90,24 +90,6 @@ pipeline {
             }
         }
 
-        stage('Backup') {
-            steps {
-                sh '''
-                    echo "Creating project backup..."
-                    chmod +x backup.sh
-                    ./backup.sh
-
-                    # Verify the backup file exists
-                    if ls backup/backup_*.tar.gz 1> /dev/null 2>&1; then
-                        echo "Backup file created successfully."
-                    else
-                        echo "Backup file creation failed."
-                        exit 1
-                    fi
-                '''
-            }
-        }
-
         stage('Merge to Main') {
             when {
                 expression {
