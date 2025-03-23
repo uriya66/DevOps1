@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e  # Exit script on any error
 
-# Define backup directory inside project
-BACKUP_DIR="/var/lib/jenkins/workspace/DevOps1/backup"
+# Define backup directory inside the GitHub repository
+BACKUP_DIR="./Backup"
 
 echo "Running backup..."
 
@@ -15,8 +15,8 @@ fi
 # Create a backup file with timestamp
 BACKUP_FILE="$BACKUP_DIR/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
 
-# Create compressed archive
-tar -czf "$BACKUP_FILE" /var/lib/jenkins/workspace/DevOps1
+# Exclude the Backup folder itself to avoid recursion
+tar --exclude='./Backup' -czf "$BACKUP_FILE" .
 
 echo "Backup completed successfully: $BACKUP_FILE"
 
