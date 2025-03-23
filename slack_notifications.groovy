@@ -27,50 +27,30 @@ def constructSlackMessage(buildNumber, buildUrl) {
     }
 }
 
-// Function to build Slack message indicating merge and deployment status
+
+// Constructs a Slack message with merge/deploy status
+
 def constructSlackResultMessage(buildNumber, buildUrl, mergeSuccess, deploySuccess) {
-    try {
-        def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()  // Get current branch name
-        def jenkinsUrl = buildUrl.split('/job/')[0]  // Extract base Jenkins URL
-        def publicIp = jenkinsUrl.replace("http://", "").replace(":8080", "")  // Extract public IP
-        def appUrl = "http://${publicIp}:5000"  // Construct Flask app URL
-
-        // Determine human-readable status for merge
-        def mergeStatus = mergeSuccess ? "Merge to main completed successfully." : "Merge to main failed."
-
-        // Determine human-readable status for deploy
-        def deployStatus = deploySuccess ? "Deployment completed successfully. Application is live." : "Deployment failed. Please check the Jenkins logs."
-
-        // Return formatted Slack message for post-merge/deploy status
-        return """
-        Jenkins Post Actions Summary
-        Pipeline: #${buildNumber}
-        Branch: ${branch}
-        ${mergeStatus}
-        ${deployStatus}
-        Pipeline Link: [View Pipeline](${buildUrl})
-        Application Link: [Open Flask App](${appUrl})
-        """
-    } catch (Exception e) {
-        echo "Failed to construct Slack result message: ${e.message}"  // Log error during message creation
-        return "Error generating result Slack message."  // Fallback message
-    }
+    def mergeStatus = mergeSuccess ? "✅ Merge succeeded." : "❌ Merge failed."
+    def deployStatus = deploySuccess ? "✅ Deploy succeeded." : (mergeSuccess ? "❌ Deploy failed after merge." : "⏭️ Deploy skipped due to merge failure.")
+    def baseMessage = constructSlackMessage(buildNumber, buildUrl)  // Reuse existing info message
+    return "${baseMessage}\n${mergeStatus}\n${deployStatus}"  // Append result statuses
 }
 
-// Function to send a Slack message using Jenkins credentials
+// Sends a Slack notification
+
 def sendSlackNotification(String message, String color) {
     try {
         slackSend(
-            channel: '#jenkis_alerts',  // Slack channel to send the message to
-            tokenCredentialId: 'Jenkins-Slack-Token',  // Credential ID stored in Jenkins for Slack token
-            message: message,  // The actual Slack message content
-            color: color  // Color indicator for the Slack message (good, danger, warning)
+            channel: '#jenkis_alerts',  // Target Slack channel
+            tokenCredentialId: 'Jenkins-Slack-Token',  // Slack API credential ID
+            message: message,  // Message body
+            color: color  // Message color: good, warning, danger
         )
     } catch (Exception e) {
-        echo "ERROR: Slack notification failed: ${e.message}"  // Log error if Slack send fails
+        echo "ERROR: Slack notification failed: ${e.message}"  // Log Slack failure
     }
 }
 
-// Return the functions in this script for use in Jenkinsfile
-return this  // Allow loading this file in Jenkinsfile via 'load'
+return this  // Return this object to be used in Jenkinsfile
 
