@@ -73,12 +73,12 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                    set -e  // Exit if any command fails
+                    set -e  # Exit if any command fails
                     echo "Setting up Python virtual environment."
-                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  // Create venv if missing
-                    . venv/bin/activate  // Activate Python virtual environment
-                    venv/bin/python -m pip install --upgrade pip  // Upgrade pip
-                    venv/bin/python -m pip install flask requests pytest gunicorn  // Install required packages
+                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  # Create venv if missing
+                    . venv/bin/activate  # Activate Python virtual environment
+                    venv/bin/python -m pip install --upgrade pip  # Upgrade pip
+                    venv/bin/python -m pip install flask requests pytest gunicorn  # Install required packages
                 '''
             }
         }
@@ -86,13 +86,13 @@ pipeline {
         stage('Test') {
             steps {
                 sh '''
-                    set -e  // Stop if any command fails
+                    set -e  # Stop if any command fails
                     echo "Starting Flask app for testing..."
-                    . venv/bin/activate  // Activate virtual environment
-                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &  // Start the app with Gunicorn in background
-                    sleep 3  // Give server time to start
+                    . venv/bin/activate  # Activate virtual environment
+                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &   # Start the app with Gunicorn in background
+                    sleep 3  # Give server time to start
                     echo "Running API tests."
-                    venv/bin/python -m pytest test_app.py  // Run test suite with pytest
+                    venv/bin/python -m pytest test_app.py  # Run test suite with pytest
                 '''
             }
         }
@@ -101,8 +101,8 @@ pipeline {
             steps {
                 sh '''
                     echo "Creating project backup..."
-                    chmod +x backup.sh  // Ensure the backup script is executable
-                    ./backup.sh  // Run the backup script
+                    chmod +x backup.sh  # Ensure the backup script is executable
+                    ./backup.sh  # Run the backup script
                 '''
             }
         }
@@ -122,12 +122,12 @@ pipeline {
 
                         withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                             sh '''
-                                git config user.name "jenkins"  // Set Git user for automated commit
-                                git config user.email "jenkins@example.com"  // Set Git email
-                                git checkout main  // Switch to main branch
-                                git pull origin main  // Update local main
-                                git merge --no-ff ${GIT_BRANCH}  // Merge without fast-forward
-                                git push origin main  // Push merge to GitHub
+                                git config user.name "jenkins"  # Set Git user for automated commit
+                                git config user.email "jenkins@example.com"  # Set Git email
+                                git checkout main  # Switch to main branch
+                                git pull origin main  # Update local main
+                                git merge --no-ff ${GIT_BRANCH}  # Merge without fast-forward
+                                git push origin main  # Push merge to GitHub
                             '''
                         }
                     } else {
@@ -147,8 +147,8 @@ pipeline {
                 script {
                     echo "Starting deployment..."
                     sh '''
-                        chmod +x deploy.sh  // Ensure deploy script is executable
-                        ./deploy.sh  // Run the deployment script
+                        chmod +x deploy.sh  # Ensure deploy script is executable
+                        ./deploy.sh  # Run the deployment script
                     '''
                 }
             }
