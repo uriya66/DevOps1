@@ -27,37 +27,37 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Generate application link using extracted IP and Flask port
         def appUrl = "http://${publicIp}:5000"  // Target Flask app link
 
-        // Start composing message
+        // Start composing the Slack message with base content
         def message = """
-         Jenkins Build Completed!
-        *Pipeline:* #${buildNumber}
-        *Branch:* ${branch}
-        *Commit:* [${commitId}](${commitUrl})
-        *Message:* ${commitMessage}
-        *Duration:* ${duration}
-        *Pipeline Link:* [View Pipeline](${buildUrl})
-        *Application Link:* [Open Flask App](${appUrl})
-        """
+Jenkins Build Completed!
+*Pipeline:* #${buildNumber}
+*Branch:* ${branch}
+*Commit:* [${commitId}](${commitUrl})
+*Message:* ${commitMessage}
+*Duration:* ${duration}
+*Pipeline Link:* [View Pipeline](${buildUrl})
+*Application Link:* [Open Flask App](${appUrl})
+"""
 
-        // Add merge status if provided
-        if (mergeSuccess != null) {
-            message += "\n" + (mergeSuccess ? "✅ Merge succeeded." : "❌ Merge failed.")
+        // Append merge status only if this is feature-test branch
+        if (branch == 'feature-test' && mergeSuccess != null) {
+            message += "\n" + (mergeSuccess ? "Merge succeeded." : "Merge failed.")  // Add merge status line
         }
 
-        // Add deploy status if provided
-        if (deploySuccess != null) {
+        // Append deploy status only if this is feature-test branch and deploy status is provided
+        if (branch == 'feature-test' && deploySuccess != null) {
             if (!mergeSuccess) {
-                message += "\nDeploy skipped due to merge failure."
+                message += "\nDeploy skipped due to merge failure."  // Indicate deploy was skipped
             } else {
-                message += "\n" + (deploySuccess ? "✅ Deploy succeeded." : "❌ Deploy failed.")
+                message += "\n" + (deploySuccess ? "Deploy succeeded." : "Deploy failed.")  // Add deploy result
             }
         }
 
-        return message  // Return the composed message
+        return message  // Return the fully composed Slack message
 
     } catch (Exception e) {
         echo "Failed to construct Slack message: ${e.message}"  // Log message error
-        return "Error generating Slack message."  // Return fallback message
+        return "Error generating Slack message."  // Return fallback message in case of exception
     }
 }
 
@@ -77,4 +77,3 @@ def sendSlackNotification(String message, String color) {
 
 // Return this script object so it can be loaded from Jenkinsfile
 return this
-
