@@ -48,15 +48,13 @@ Jenkins Build Completed!
 *Application Link:* [Open Flask App](${appUrl})
 """
 
-        // Append merge status only if this is feature-test branch
-        if (normalizedBranch == 'feature-test' && mergeSuccess != null) {
-            message += "\nMerge " + (mergeSuccess ? "succeeded." : "failed.")  // Add merge status
+        if (mergeSuccess != null) {
+            message += "\n" + (mergeSuccess ? "Merge succeeded." : "Merge failed.")   // Add merge status
         }
 
-        // Append deploy status only if this is feature-test branch and deploy status is provided
-        if (normalizedBranch == 'feature-test' && deploySuccess != null) {
-            if (mergeSuccess == false) {
-                message += "\nDeploy skipped due to merge failure."  // Log deploy skipped due to failed merge
+        if (deploySuccess != null) {
+            if (!mergeSuccess) {
+                message += "\nDeploy skipped due to merge failure." / Log deploy skipped due to failed merge
             } else {
                 message += "\n" + (deploySuccess ? "Deploy succeeded." : "Deploy failed.")  // Add deploy status
             }
@@ -69,7 +67,7 @@ Jenkins Build Completed!
 
     } catch (Exception e) {
         echo "Failed to construct Slack message: ${e.message}"  // Log message error
-        return "Error generating Slack message."  // Return fallback message in case of exception
+        return "Error generating Slack message." // Return fallback message in case of exception
     }
 }
 
@@ -78,18 +76,16 @@ def sendSlackNotification(String message, String color) {
     try {
         // DEBUG: Log color used
         echo "Slack debug - sending message with color: ${color}"
-
         slackSend(
-            channel: '#jenkis_alerts',  // Slack channel to send the message to
+            channel: '#jenkis_alerts', // Slack channel to send the message to
             tokenCredentialId: 'Jenkins-Slack-Token',  // Slack API token from Jenkins credentials
             message: message,  // Message body to send
             color: color  // Color bar on Slack (good/warning/danger)
         )
     } catch (Exception e) {
-        echo "ERROR: Slack notification failed: ${e.message}"  // Log Slack error
+        echo "ERROR: Slack notification failed: ${e.message}" // Log Slack error
     }
 }
 
 // Return this script object so it can be loaded from Jenkinsfile
 return this
-
