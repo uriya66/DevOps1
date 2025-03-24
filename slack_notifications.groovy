@@ -12,6 +12,15 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Retrieve the current branch name
         def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
 
+        // DEBUG: Log the raw branch name
+        echo "Slack debug - raw branch: ${branch}"
+
+        // Normalize branch name to remove "origin/" if it exists
+        def normalizedBranch = branch.replace("origin/", "")  // Ensure clean comparison
+
+        // DEBUG: Log the normalized branch name
+        echo "Slack debug - normalized branch: ${normalizedBranch}"
+
         // Generate GitHub commit URL for direct reference
         def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"
 
@@ -31,7 +40,7 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         def message = """
 Jenkins Build Completed!
 *Pipeline:* #${buildNumber}
-*Branch:* ${branch}
+*Branch:* ${normalizedBranch}
 *Commit:* [${commitId}](${commitUrl})
 *Message:* ${commitMessage}
 *Duration:* ${duration}
@@ -40,18 +49,21 @@ Jenkins Build Completed!
 """
 
         // Append merge status only if this is feature-test branch
-        if (branch == 'feature-test' && mergeSuccess != null) {
-            message += "\n" + (mergeSuccess ? "Merge succeeded." : "Merge failed.")  // Add merge status line
+        if (normalizedBranch == 'feature-test' && mergeSuccess != null) {
+            message += "\nMerge " + (mergeSuccess ? "succeeded." : "failed.")  // Log merge status
         }
 
         // Append deploy status only if this is feature-test branch and deploy status is provided
-        if (branch == 'feature-test' && deploySuccess != null) {
-            if (!mergeSuccess) {
-                message += "\nDeploy skipped due to merge failure."  // Indicate deploy was skipped
+        if (normalizedBranch == 'feature-test' && deploySuccess != null) {
+            if (mergeSuccess == false) {
+                message += "\nDeploy skipped due to merge failure."  // Log deploy skipped due to failed merge
             } else {
                 message += "\n" + (deploySuccess ? "Deploy succeeded." : "Deploy failed.")  // Add deploy result
             }
         }
+
+        // DEBUG: Final message content
+        echo "Slack debug - final message:\n${message}"
 
         return message  // Return the fully composed Slack message
 
@@ -64,6 +76,9 @@ Jenkins Build Completed!
 // Sends a Slack notification with the given message and color indicator
 def sendSlackNotification(String message, String color) {
     try {
+        // DEBUG: Log color used
+        echo "Slack debug - sending message with color: ${color}"
+
         slackSend(
             channel: '#jenkis_alerts',  // Slack channel to send the message to
             tokenCredentialId: 'Jenkins-Slack-Token',  // Slack API token from Jenkins credentials
@@ -77,3 +92,4 @@ def sendSlackNotification(String message, String color) {
 
 // Return this script object so it can be loaded from Jenkinsfile
 return this
+
