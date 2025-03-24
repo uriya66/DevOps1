@@ -50,7 +50,7 @@ Jenkins Build Completed!
 
         // Append merge status only if this is feature-test branch
         if (normalizedBranch == 'feature-test' && mergeSuccess != null) {
-            message += "\nMerge " + (mergeSuccess ? "succeeded." : "failed.")  // Log merge status
+            message += "\nMerge " + (mergeSuccess ? "succeeded." : "failed.")  // Add merge status
         }
 
         // Append deploy status only if this is feature-test branch and deploy status is provided
@@ -58,7 +58,7 @@ Jenkins Build Completed!
             if (mergeSuccess == false) {
                 message += "\nDeploy skipped due to merge failure."  // Log deploy skipped due to failed merge
             } else {
-                message += "\n" + (deploySuccess ? "Deploy succeeded." : "Deploy failed.")  // Add deploy result
+                message += "\n" + (deploySuccess ? "Deploy succeeded." : "Deploy failed.")  // Add deploy status
             }
         }
 

@@ -8,6 +8,7 @@ pipeline {
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub SSH repo URL
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Dynamic feature branch name based on build number
+        GIT_BRANCH = ''  // NEW: Make GIT_BRANCH global so it can be accessed in post block
     }
 
     stages {
@@ -19,10 +20,10 @@ pipeline {
                         sh "ssh-add -l"  // List loaded SSH keys
                         sh '''
                             if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
-                                echo "SSH Connection successful."  # Confirm SSH connection
+                                echo "SSH Connection successful."  // Confirm SSH connection
                             else
-                                echo "ERROR: SSH Connection failed!"  # Report SSH failure
-                                exit 1  # Exit pipeline if SSH fails
+                                echo "ERROR: SSH Connection failed!"  // Report SSH failure
+                                exit 1  // Exit pipeline if SSH fails
                             fi
                         '''
                     }
@@ -53,12 +54,12 @@ pipeline {
 
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {  // Provide SSH agent to shell
                         sh '''
-                            git checkout -b ${BRANCH_NAME}  # Create local feature branch
-                            git push origin ${BRANCH_NAME}  # Push feature branch to GitHub
+                            git checkout -b ${BRANCH_NAME}  // Create local feature branch
+                            git push origin ${BRANCH_NAME}  // Push feature branch to GitHub
                         '''
                     }
 
-                    env.GIT_BRANCH = BRANCH_NAME  // Save branch name in environment variable for later use
+                    env.GIT_BRANCH = BRANCH_NAME  // Set GIT_BRANCH so it can be used in post block
                 }
             }
         }
@@ -96,7 +97,8 @@ pipeline {
             script {
                 echo "Build and tests passed successfully."  // Log success message
 
-                if (env.GIT_BRANCH?.startsWith("feature-")) {  // Only merge if the branch is a feature branch
+                // NEW: Support both feature-* and feature-test branches for merge & deploy
+                if (env.GIT_BRANCH?.startsWith("feature-") || env.GIT_BRANCH == 'feature-test') {
                     echo "Merging ${env.GIT_BRANCH} into main..."  // Log start of merge
 
                     def mergeSuccess = true  // Track merge status
@@ -106,12 +108,12 @@ pipeline {
                     try {
                         withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {  // Provide SSH agent to shell
                             sh '''
-                                git config user.name "jenkins"  # Set Git username for commit
-                                git config user.email "jenkins@example.com"  # Set Git email
-                                git checkout main  # Switch to main branch
-                                git pull origin main  # Pull latest changes
-                                git merge --no-ff ${GIT_BRANCH}  # Merge feature branch into main
-                                git push origin main  # Push merged changes to GitHub
+                                git config user.name "jenkins"  // Set Git username for commit
+                                git config user.email "jenkins@example.com"  // Set Git email
+                                git checkout main  // Switch to main branch
+                                git pull origin main  // Pull latest changes
+                                git merge --no-ff ${GIT_BRANCH}  // Merge feature branch into main
+                                git push origin main  // Push merged changes to GitHub
                             '''
                         }
                         echo "Merge completed successfully."  // Log successful merge
@@ -124,8 +126,8 @@ pipeline {
                         try {
                             echo "Starting deployment after merge..."  // Log deploy start
                             sh '''
-                                chmod +x deploy.sh  # Make deploy script executable
-                                ./deploy.sh  # Run the deploy script
+                                chmod +x deploy.sh  // Make deploy script executable
+                                ./deploy.sh  // Run the deploy script
                             '''
                             echo "Deployment script executed successfully."  // Log deploy success
                         } catch (Exception deployError) {
@@ -134,8 +136,8 @@ pipeline {
                         }
                     }
 
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, mergeSuccess, deploySuccess)  // Create full Slack message with merge/deploy result
-                    def statusColor = (mergeSuccess && deploySuccess) ? "good" : "danger"  // Choose Slack color: green if all OK, red otherwise
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, mergeSuccess, deploySuccess)  // Create full Slack message
+                    def statusColor = (mergeSuccess && deploySuccess) ? "good" : "danger"  // Choose Slack color
                     slack.sendSlackNotification(message, statusColor)  // Send Slack message
                 }
             }
@@ -143,12 +145,12 @@ pipeline {
 
         failure {
             script {
-                echo "Build or tests failed."  // Log general build/test failure
+                echo "Build or tests failed."  // Log general failure
 
                 try {
                     def slack = load 'slack_notifications.groovy'  // Load Slack helper
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, false, false)  // Send failure message (no merge, no deploy)
-                    slack.sendSlackNotification(message, "danger")  // Slack color red
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, false, false)  // Failure message
+                    slack.sendSlackNotification(message, "danger")  // Send to Slack
                 } catch (Exception e) {
                     echo "Error sending Slack failure message: ${e.message}"  // Log Slack error
                 }
@@ -158,11 +160,11 @@ pipeline {
         always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy'  // Load Slack helper script
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Build message without merge/deploy status
-                    slack.sendSlackNotification(message, "good")  // Send Slack message
+                    def slack = load 'slack_notifications.groovy'  // Load Slack helper
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Message without status
+                    slack.sendSlackNotification(message, "good")  // Send to Slack
                 } catch (Exception e) {
-                    echo "Error sending Slack notification: ${e.message}"  // Log Slack error
+                    echo "Error sending Slack notification: ${e.message}"  // Log error
                 }
             }
         }
