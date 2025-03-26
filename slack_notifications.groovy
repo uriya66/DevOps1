@@ -83,7 +83,7 @@ def sendSlackNotification(String message, String color) {
             color: color  // Color bar on Slack (good/warning/danger)
         )
     } catch (Exception e) {
-        echo "ERROR: Slack notification failed: ${e.message}" // Log Slack error
+        echo "ERROR: Slack notification failed: ${e.message}"  // Log Slack error
     }
 }
 
