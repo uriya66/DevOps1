@@ -1,22 +1,27 @@
 #!/bin/bash
-set -e  # Exit script on any error
+set -e  # Exit on error
 
-# Define backup directory inside project
-BACKUP_DIR="/var/lib/jenkins/workspace/DevOps1/backup"
+# Define backup dir OUTSIDE the repo
+BACKUP_DIR="/var/lib/jenkins/backups/DevOps1"
 
-echo "Running backup..."
-
-# Create backup directory if it doesn't exist
+# Create backup dir if not exists
 if [ ! -d "$BACKUP_DIR" ]; then
-    echo "Creating backup directory..."
+    echo "Creating backup directory at $BACKUP_DIR"
     mkdir -p "$BACKUP_DIR"
 fi
 
-# Create a backup file with timestamp
-BACKUP_FILE="$BACKUP_DIR/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
+# Get Jenkins build number and timestamp
+BUILD_NUM="${BUILD_NUMBER:-manual}"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-# Create compressed archive
-tar -czf "$BACKUP_FILE" /var/lib/jenkins/workspace/DevOps1
+# Backup file path
+BACKUP_FILE="$BACKUP_DIR/build_${BUILD_NUM}_$TIMESTAMP.tar.gz"
 
-echo "Backup completed successfully: $BACKUP_FILE"
+echo "Creating backup file: $BACKUP_FILE"
+
+# Create compressed archive (exclude .git, venv, and backups)
+tar --exclude='./.git' --exclude='./venv' --exclude='./backup' \
+    -czf "$BACKUP_FILE" .
+
+echo " Backup completed: $BACKUP_FILE"
 
