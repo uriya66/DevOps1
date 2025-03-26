@@ -1,38 +1,46 @@
 #!/bin/bash
-set -e  # Exit if any command fails
+set -e  # Exit immediately if any command fails
 
-# Service name for systemd
+# Define the name of the Gunicorn systemd service
 SERVICE_NAME="gunicorn"
 
-# Start deployment
-echo "Deploying application using Gunicorn..."
+# Notify start of deployment
+echo "Deploying application with Gunicorn..."
 
-# Activate virtualenv or create it
+# Check if virtual environment exists
 if [ -d "venv" ]; then
     echo "Activating virtual environment..."
-    . venv/bin/activate
+    . venv/bin/activate  # Activate venv if exists
 else
-    echo "Virtual environment not found. Creating one..."
-    python3 -m venv venv
+    echo "Virtual environment not found! Creating one..."
+    python3 -m venv venv  # Create venv
     . venv/bin/activate
 fi
 
-# Install packages only if missing
-pip show flask > /dev/null || pip install flask
-pip show gunicorn > /dev/null || pip install gunicorn
-pip show requests > /dev/null || pip install requests
-pip show pytest > /dev/null || pip install pytest
+# Stop Gunicorn if already running
+if systemctl is-active --quiet $SERVICE_NAME; then
+    echo "Stopping existing Gunicorn service..."
+    sudo -n systemctl stop $SERVICE_NAME
+fi
 
-# Restart Gunicorn
+# Install missing Python dependencies
+for package in flask gunicorn requests pytest; do
+    if ! pip show $package > /dev/null; then
+        echo "Installing $package..."
+        pip install $package
+    fi
+done
+
+# Restart Gunicorn service
 echo "Restarting Gunicorn service..."
 sudo -n systemctl restart $SERVICE_NAME
 
-# Verify it's active
+# Confirm service is running
 if ! systemctl is-active --quiet $SERVICE_NAME; then
     echo "ERROR: Gunicorn failed to start!"
     exit 1
 fi
 
-# Inform success
-echo "Deployment completed successfully. App running at http://localhost:5000 or http://<public-ip>:5000"
+# Output deployment success
+echo "Deployment completed successfully. App is running on localhost and public IP."
 
