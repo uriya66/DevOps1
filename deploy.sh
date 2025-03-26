@@ -1,4 +1,6 @@
 #!/bin/bash
+echo "=== DEPLOY.SH RUNNING VERSION: $(head -n 5 deploy.sh) ==="
+
 set -e  # Exit the script immediately if any command fails
 
 # Print a starting message to indicate the beginning of the deployment
