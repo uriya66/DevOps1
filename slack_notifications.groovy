@@ -1,15 +1,32 @@
 // Construct a Slack message with Git info and app links
 def constructSlackMessage(buildNumber, buildUrl) {
     try {
-        def commitId = sh(script: "git rev-parse HEAD", returnStdout: true).trim()  // Get last commit ID
-        def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()  // Get commit message
-        def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()  // Get current branch
-        def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"  // Create commit URL
-        def duration = "${currentBuild.durationString.replace(' and counting', '')}"  // Build duration
-        def jenkinsUrl = buildUrl.split('/job/')[0]  // Jenkins root URL
-        def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()  // Get current dynamic IP
-        def appUrl1 = "http://${publicIp}:5000"  // External app URL
-        
+	// Retrieve commit ID from Git
+        def commitId = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
+
+        // Retrieve commit message from latest commit
+        def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+
+        // Retrieve the current branch name
+        def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+
+        // Generate GitHub commit URL for direct reference
+        def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"  
+
+        // Get pipeline duration in readable format
+        def duration = "${currentBuild.durationString.replace(' and counting', '')}" 
+
+        // Extract Jenkins base URL from full build URL
+        def jenkinsUrl = buildUrl.split('/job/')[0]  
+
+        // Extract public IP from Jenkins base URL (assumes format: http://<ip>:8080)
+        def publicIp1 = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()  
+        def publicIp2 = jenkinsUrl.replace("http://", "").replace(":8080", "")  // Get public IP
+
+        // Generate application link using extracted IP and Flask port
+        def appUrl1 = "http://${publicIp1}:5000"  // Target Flask app link
+        def appUrl2 = "http://${publicIp2}:5000"
+
 
         // Build full Slack message
         return """
@@ -21,6 +38,7 @@ def constructSlackMessage(buildNumber, buildUrl) {
         *Duration:* ${duration}
         *App Links:*
         - ${appUrl1}
+        - ${appUrl3}
         *Pipeline:* ${buildUrl}
         """
     } catch (Exception e) {
@@ -43,5 +61,5 @@ def sendSlackNotification(String message, String color) {
     }
 }
 
-return this  // Make functions available to Jenkinsfile
-
+// Return this script object so it can be loaded from Jenkinsfile
+return this
