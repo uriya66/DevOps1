@@ -38,7 +38,7 @@ def constructSlackMessage(buildNumber, buildUrl) {
         *Duration:* ${duration}
         *App Links:*
         - ${appUrl1}
-        - ${appUrl3}
+        - ${appUrl2}
         *Pipeline:* ${buildUrl}
         """
     } catch (Exception e) {
