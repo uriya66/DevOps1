@@ -38,10 +38,10 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    echo "Cloning from main branch"  // Log clone
+                    echo "Cloning from triggering branch: ${env.BRANCH_NAME}"  // Log clone source
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: "${env.GIT_BRANCH}"]],  // Pull from the last push
+                        branches: [[name: "*/${env.BRANCH_NAME}"]],  // Dynamically pull the pushed branch
                         userRemoteConfigs: [[
                             url: REPO_URL,
                             credentialsId: 'Jenkins-GitHub-SSH'
