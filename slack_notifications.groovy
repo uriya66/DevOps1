@@ -29,7 +29,7 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
 
         // Start composing message
         def message = """
-         Jenkins Build Completed!
+        Jenkins Build Completed!
         *Pipeline:* #${buildNumber}
         *Branch:* ${branch}
         *Commit:* [${commitId}](${commitUrl})
@@ -41,7 +41,7 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
 
         // Add merge status if provided
         if (mergeSuccess != null) {
-            message += "\n" + (mergeSuccess ? "✅ Merge succeeded." : "❌ Merge failed.")
+            message += "\n" + (mergeSuccess ? "Merge succeeded." : "Merge failed.")
         }
 
         // Add deploy status if provided
@@ -49,7 +49,7 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
             if (!mergeSuccess) {
                 message += "\nDeploy skipped due to merge failure."
             } else {
-                message += "\n" + (deploySuccess ? "✅ Deploy succeeded." : "❌ Deploy failed.")
+                message += "\n" + (deploySuccess ? "Deploy succeeded." : "Deploy failed.")
             }
         }
 
