@@ -80,15 +80,27 @@ pipeline {
 
         stage('Test') {
             steps {
-                sh """
-                    set -e  # Stop on error
-                    echo "Running tests"
+                sh '''
+                    set -e  # Stop the script on any error
+                    echo "Running Flask app for testing..."
+
+                    # Activate the virtual environment
                     . venv/bin/activate
-                    venv/bin/python -m pytest test_app.py  # Run Pytest tests
-                """
+
+                    # Start Gunicorn in the background on localhost
+                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &
+
+                    # Give the server a moment to fully start
+                    sleep 3
+
+                    echo "Running Pytest tests..."
+                    venv/bin/python -m pytest test_app.py
+
+                    # Kill Gunicorn after tests complete
+                    pkill gunicorn
+                '''
             }
         }
-
         stage('Merge to Main') {
             when {
                 expression {
