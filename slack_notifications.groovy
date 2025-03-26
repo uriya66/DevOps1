@@ -9,7 +9,7 @@ def constructSlackMessage(buildNumber, buildUrl) {
         def jenkinsUrl = buildUrl.split('/job/')[0]  // Jenkins root URL
         def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()  // Get current dynamic IP
         def appUrl1 = "http://${publicIp}:5000"  // External app URL
-        def appUrl2 = "http://localhost:5000"  // Localhost URL
+        
 
         // Build full Slack message
         return """
@@ -21,7 +21,6 @@ def constructSlackMessage(buildNumber, buildUrl) {
         *Duration:* ${duration}
         *App Links:*
         - ${appUrl1}
-        - ${appUrl2}
         *Pipeline:* ${buildUrl}
         """
     } catch (Exception e) {
