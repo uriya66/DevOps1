@@ -29,7 +29,7 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
 
         // Start composing message
         def message = """
-        Jenkins Build Completed!
+         Jenkins Build Completed!
         *Pipeline:* #${buildNumber}
         *Branch:* ${branch}
         *Commit:* [${commitId}](${commitUrl})
@@ -61,16 +61,20 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
     }
 }
 
-
-// This function sends a message to a Slack channel with a given color
+// Sends a Slack notification with the given message and color indicator
 def sendSlackNotification(String message, String color) {
-    slackSend(
-        channel: '#jenkis_alerts', // Slack channel to post to
-        tokenCredentialId: 'Jenkins-Slack-Token', // ID of the Slack token stored in Jenkins credentials
-        message: message, // The message text
-        color: color // Message color ("good" = green, "danger" = red, etc.)
-    )
+    try {
+        slackSend(
+            channel: '#jenkis_alerts',  // Slack channel to send the message to
+            tokenCredentialId: 'Jenkins-Slack-Token',  // Slack API token from Jenkins credentials
+            message: message,  // Message body to send
+            color: color  // Color bar on Slack (good/warning/danger)
+        )
+    } catch (Exception e) {
+        echo "ERROR: Slack notification failed: ${e.message}"  // Log Slack error
+    }
 }
 
-// Return the current script as an object so it can be used with `new slack_notifications()`
+// Return this script object so it can be loaded from Jenkinsfile
 return this
+
