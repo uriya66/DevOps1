@@ -20,25 +20,22 @@ def constructSlackMessage(buildNumber, buildUrl) {
         def jenkinsUrl = buildUrl.split('/job/')[0]  
 
         // Extract public IP from Jenkins base URL (assumes format: http://<ip>:8080)
-        def publicIp1 = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()  
-        def publicIp2 = jenkinsUrl.replace("http://", "").replace(":8080", "")  // Get public IP
+        def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()  
 
         // Generate application link using extracted IP and Flask port
-        def appUrl1 = "http://${publicIp1}:5000"  // Target Flask app link
-        def appUrl2 = "http://${publicIp2}:5000"
+        def appUrl = "http://${publicIp}:5000"  // Target Flask app link
 
 
         // Build full Slack message
         return """
-        *Jenkins Pipeline Result*
+        *✅ Jenkins Build Completed, And the Result:*
         *Build:* #${buildNumber}
         *Branch:* ${branch}
         *Commit:* [${commitId}](${commitUrl})
         *Message:* ${commitMessage}
         *Duration:* ${duration}
         *App Links:*
-        - ${appUrl1}
-        - ${appUrl2}
+        - ${appUrl}
         *Pipeline:* ${buildUrl}
         """
     } catch (Exception e) {

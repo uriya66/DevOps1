@@ -29,7 +29,7 @@ pipeline {
                                 echo "SSH connection failed!"
                                 exit 1
                             fi
-                        '''
+                        '''  // Test SSH connection
                     }
                 }
             }
@@ -55,7 +55,7 @@ pipeline {
                         branches: [[name: "*/${env.GIT_BRANCH}"]],  // Checkout correct branch
                         userRemoteConfigs: [[
                             url: REPO_URL,
-                            credentialsId: 'Jenkins-GitHub-SSH'
+                            credentialsId: 'Jenkins-GitHub-SSH'  // Use Jenkins stored SSH key
                         ]]
                     ])
                 }
@@ -68,8 +68,8 @@ pipeline {
                     echo "Creating new branch: ${env.BRANCH_NAME}"  // Log creation
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${env.BRANCH_NAME}
-                            git push origin ${env.BRANCH_NAME}
+                            git checkout -b ${env.BRANCH_NAME}  # Create new feature branch
+                            git push origin ${env.BRANCH_NAME}  # Push to remote
                         """
                     }
                 }
@@ -79,12 +79,12 @@ pipeline {
         stage('Build') {
             steps {
                 sh """
-                    set -e
-                    echo "Preparing virtual environment"
+                    set -e  # Stop on first error
+                    echo "Preparing virtual environment"  # Log start
                     python3 -m venv venv  # Create new venv
-                    . venv/bin/activate
-                    venv/bin/pip install --upgrade pip
-                    venv/bin/pip install flask requests pytest gunicorn
+                    . venv/bin/activate  # Activate venv
+                    venv/bin/pip install --upgrade pip  # Upgrade pip
+                    venv/bin/pip install flask requests pytest gunicorn  # Install dependencies
                 """
             }
         }
@@ -92,12 +92,12 @@ pipeline {
         stage('Test') {
             steps {
                 sh '''
-                    set -e
-                    echo "Running unit tests"
-                    . venv/bin/activate
-                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &  # Start app for test
-                    sleep 3
-                    venv/bin/python -m pytest test_app.py
+                    set -e  # Stop on error
+                    echo "Running unit tests"  # Log test phase
+                    . venv/bin/activate  # Activate environment
+                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &  # Start app in background
+                    sleep 3  # Wait for app to start
+                    venv/bin/python -m pytest test_app.py  # Run tests
                     pkill gunicorn  # Stop app
                 '''
             }
@@ -111,17 +111,17 @@ pipeline {
                 script {
                     def slack = load 'slack_notifications.groovy'  // Load Slack functions
                     try {
-                        echo "Merging ${env.BRANCH_NAME} to main"  // Log
+                        echo "Merging ${env.BRANCH_NAME} to main"  // Log merge
                         sh """
-                            git checkout main
-                            git pull origin main
-                            git merge --no-ff ${env.BRANCH_NAME}
-                            git push origin main
+                            git checkout main  # Switch to main
+                            git pull origin main  # Sync main
+                            git merge --no-ff ${env.BRANCH_NAME}  # Merge feature
+                            git push origin main  # Push updated main
                         """
-                        slack.sendSlackNotification("Merge completed successfully for ${env.BRANCH_NAME}", "good")  // Notify success
+                        slack.sendSlackNotification("*✅ Merge completed successfully for `${env.BRANCH_NAME}`*", "good")  // Notify success
                     } catch (err) {
-                        slack.sendSlackNotification("Merge failed for ${env.BRANCH_NAME}", "danger")  // Notify failure
-                        error("Merge failed!")  // Stop pipeline
+                        slack.sendSlackNotification("*❌ Merge failed for `${env.BRANCH_NAME}`: ${err.message}*", "danger")  // Notify failure
+                        error("Merge failed!")  // Fail pipeline
                     }
                 }
             }
@@ -129,17 +129,17 @@ pipeline {
 
         stage('Deploy') {
             when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }  // Only if passed
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }  // Run only if passed
             }
             steps {
                 script {
-                    def slack = load 'slack_notifications.groovy'  // Load Slack library
+                    def slack = load 'slack_notifications.groovy'  // Load Slack logic
                     try {
                         sh "bash deploy.sh"  // Run deploy script
-                        slack.sendSlackNotification("Deployment completed for ${env.BRANCH_NAME}", "good")  // Notify success
+                        slack.sendSlackNotification("*🚀 Deployment completed for `${env.BRANCH_NAME}`*", "good")  // Notify success
                     } catch (err) {
-                        slack.sendSlackNotification("Deployment failed for ${env.BRANCH_NAME}", "danger")  // Notify failure
-                        error("Deployment failed!")  // Stop pipeline
+                        slack.sendSlackNotification("*🔥 Deployment failed for `${env.BRANCH_NAME}`: ${err.message}*", "danger")  // Notify failure
+                        error("Deployment failed!")  // Fail pipeline
                     }
                 }
             }
@@ -150,11 +150,11 @@ pipeline {
         always {
             script {
                 try {
-                    def slack = load 'slack_notifications.groovy'  // Load Slack lib
-                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Build message
+                    def slack = load 'slack_notifications.groovy'  // Load Slack again
+                    def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL)  // Build final message
                     slack.sendSlackNotification(message, "good")  // Send summary
                 } catch (Exception e) {
-                    echo "Slack summary failed: ${e.message}"  // Log error
+                    echo "Slack summary failed: ${e.message}"  // Print Slack error
                 }
             }
         }
