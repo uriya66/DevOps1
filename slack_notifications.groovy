@@ -1,7 +1,7 @@
 // Construct a Slack message with Git info and app links
 def constructSlackMessage(buildNumber, buildUrl) {
     try {
-	// Retrieve commit ID from Git
+        // Retrieve commit ID from Git
         def commitId = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
 
         // Retrieve commit message from latest commit
@@ -11,31 +11,29 @@ def constructSlackMessage(buildNumber, buildUrl) {
         def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
 
         // Generate GitHub commit URL for direct reference
-        def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"  
+        def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"
 
         // Get pipeline duration in readable format
-        def duration = "${currentBuild.durationString.replace(' and counting', '')}" 
+        def duration = "${currentBuild.durationString.replace(' and counting', '')}"
 
         // Extract Jenkins base URL from full build URL
-        def jenkinsUrl = buildUrl.split('/job/')[0]  
+        def jenkinsUrl = buildUrl.split('/job/')[0]
 
-        // Extract public IP from Jenkins base URL (assumes format: http://<ip>:8080)
-        def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()  
+        // Extract public IP dynamically
+        def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()
 
-        // Generate application link using extracted IP and Flask port
-        def appUrl = "http://${publicIp}:5000"  // Target Flask app link
-
+        // Build app link from public IP
+        def appUrl = "http://${publicIp}:5000"  // External access only
 
         // Build full Slack message
         return """
-        *✅ Jenkins Build Completed, And the Result:*
+        *✅ Jenkins Build Completed*
         *Build:* #${buildNumber}
         *Branch:* ${branch}
         *Commit:* [${commitId}](${commitUrl})
         *Message:* ${commitMessage}
         *Duration:* ${duration}
-        *App Links:*
-        - ${appUrl}
+        *App URL:* ${appUrl}
         *Pipeline:* ${buildUrl}
         """
     } catch (Exception e) {
@@ -58,5 +56,5 @@ def sendSlackNotification(String message, String color) {
     }
 }
 
-// Return this script object so it can be loaded from Jenkinsfile
-return this
+return this  // Return this object to Jenkinsfile
+
