@@ -41,7 +41,7 @@ pipeline {
                     echo "Cloning from main branch"  // Log clone
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: '*/main']],  // Always from main
+                        branches: [[name: "${env.GIT_BRANCH}"]],  // Pull from the last push
                         userRemoteConfigs: [[
                             url: REPO_URL,
                             credentialsId: 'Jenkins-GitHub-SSH'
