@@ -68,4 +68,3 @@ def sendSlackNotification(String message, String color) {
 
 // Return this script object so it can be load to Jenkinsfile
 return this  // Return this object to Jenkinsfile
-
