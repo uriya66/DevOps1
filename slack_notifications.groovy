@@ -1,5 +1,5 @@
 // Construct a Slack message with Git info and app links
-def constructSlackMessage(buildNumber, buildUrl) {
+def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySuccess = null) {
     try {
         // Retrieve commit ID from Git
         def commitId = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
@@ -25,15 +25,16 @@ def constructSlackMessage(buildNumber, buildUrl) {
         // Construct Flask app URL
         def appUrl = "http://${publicIp}:5000"
 
-        def resultNote = ""  // Initialize result notes
+        // Build result summary (merge/deploy)
+        def resultNote = ""
         if (mergeSuccess != null && deploySuccess != null) {
-            resultNote += mergeSuccess ? "*Merge:* Successful\n" : "*Merge:* Failed\n"
-            resultNote += deploySuccess ? "*Deploy:* Successful\n" : "*Deploy:* Failed\n"
+            resultNote += mergeSuccess ? "*Merge:* ✅ Successful\n" : "*Merge:* ❌ Failed\n"
+            resultNote += deploySuccess ? "*Deploy:* ✅ Successful\n" : "*Deploy:* ❌ Failed\n"
         }
 
         // Build full Slack message with clean format (no localhost)
         return """
-*Jenkins Build Completed!*
+*✅ Jenkins Build Completed!*
 *Pipeline:* #${buildNumber}
 *Branch:* ${branch}
 *Commit:* [${commitId}](${commitUrl})
@@ -47,7 +48,7 @@ ${resultNote}
 
     } catch (Exception e) {
         echo "Slack message error: ${e.message}"  // Log error if message construction fails
-        return "*Error constructing Slack message*\nReason: ${e.message}"  // Return fallback message
+        return "*❌ Error constructing Slack message*\nReason: ${e.message}"  // Return fallback message
     }
 }
 
@@ -67,4 +68,3 @@ def sendSlackNotification(String message, String color) {
 
 // Return this script object so it can be loaded from Jenkinsfile
 return this
-
