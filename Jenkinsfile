@@ -2,15 +2,16 @@ pipeline {
     agent any
 
     options {
-        disableConcurrentBuilds()
+        disableConcurrentBuilds()  // Prevent multiple parallel runs
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub SSH repository URL
-        BASE_BRANCH = ''
-        BRANCH_NAME = ''
-        MERGE_SUCCESS = 'false'  // Track if merge succeeded
-        DEPLOY_SUCCESS = 'false'  // Track if deploy succeeded
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Git SSH URL
+        BASE_BRANCH = ''  // Will hold triggering branch
+        BRANCH_NAME = ''  // Will hold new feature branch
+        GIT_BRANCH = ''  // Used to validate merge
+        DEPLOY_SUCCESS = 'false'  // Track deploy
+        MERGE_SUCCESS = 'false'  // Track merge
     }
 
     stages {
@@ -57,15 +58,15 @@ pipeline {
         stage('Create Feature Branch') {
             steps {
                 script {
-                    BRANCH_NAME = "feature-${env.BUILD_NUMBER}"
+                    BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Set feature branch name
+                    env.GIT_BRANCH = BRANCH_NAME  // Save into env variable
                     echo "Creating a new branch from ${BASE_BRANCH} → ${BRANCH_NAME}"
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${BRANCH_NAME}
-                            git push origin ${BRANCH_NAME}
+                            git checkout -b ${BRANCH_NAME}  # Create local branch
+                            git push origin ${BRANCH_NAME}  # Push to GitHub
                         """
                     }
-                    env.GIT_BRANCH = BRANCH_NAME
                 }
             }
         }
@@ -107,9 +108,9 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        DEPLOY_SUCCESS = 'true'  // Set success
+                        env.DEPLOY_SUCCESS = 'true'  // Mark deploy success
                     } catch (err) {
-                        DEPLOY_SUCCESS = 'false'  // Set failure
+                        env.DEPLOY_SUCCESS = 'false'  // Mark deploy failure
                         error("Deploy failed: ${err.message}")
                     }
                 }
@@ -119,27 +120,27 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith('feature-')
+                    return env.GIT_BRANCH?.startsWith('feature-')  // Merge only if feature branch
                 }
             }
             steps {
                 script {
                     try {
-                        echo "Merging ${GIT_BRANCH} into main"
+                        echo "Merging ${env.GIT_BRANCH} into main"
                         withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
-                            sh '''
+                            sh """
                                 git config user.name "jenkins"
                                 git config user.email "jenkins@example.com"
                                 git checkout main
                                 git pull origin main
-                                git merge --no-ff ${GIT_BRANCH}
+                                git merge --no-ff ${env.GIT_BRANCH}
                                 git push origin main
-                            '''
+                            """
                         }
-                        MERGE_SUCCESS = 'true'  // Set merge success
+                        env.MERGE_SUCCESS = 'true'  // Mark merge success
                     } catch (err) {
-                        MERGE_SUCCESS = 'false'  // Set merge failure
-                        error("Merge to main failed: ${err.message}")
+                        env.MERGE_SUCCESS = 'false'  // Mark merge failure
+                        error("Merge failed: ${err.message}")
                     }
                 }
             }
