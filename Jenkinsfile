@@ -1,16 +1,16 @@
 pipeline {
-    agent any  // Run the pipeline on any available Jenkins agent
+    agent any  // Run on any available Jenkins agent
 
     options {
-        disableConcurrentBuilds()  // Prevent multiple builds from running simultaneously
+        disableConcurrentBuilds()  // Prevent simultaneous builds
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub SSH repository URL
-        BASE_BRANCH = ''  // Will hold the original triggering branch
-        BRANCH_NAME = ''  // Will hold the generated feature-${BUILD_NUMBER} branch name
-        DEPLOY_SUCCESS = 'false'  // Will be set to true only if deploy succeeds
-        MERGE_SUCCESS = 'false'  // Will be set to true only if merge to main succeeds
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // SSH URL for GitHub
+        BASE_BRANCH = ''  // Will hold the source branch (main or feature-test)
+        GIT_BRANCH = ''  // Will hold the new feature-* branch name
+        DEPLOY_SUCCESS = 'false'  // Deployment status
+        MERGE_SUCCESS = 'false'  // Merge status
     }
 
     stages {
@@ -24,7 +24,7 @@ pipeline {
                             if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
                                 echo "SSH connection successful"
                             else
-                                echo "ERROR: SSH connection failed!"
+                                echo "ERROR: SSH authentication failed"
                                 exit 1
                             fi
                         '''
@@ -42,7 +42,7 @@ pipeline {
                         returnStdout: true
                     ).trim()
                     if (!BASE_BRANCH) {
-                        error("Could not detect triggering branch")
+                        error("Could not detect base branch (main or feature-test)")
                     }
                     echo "Trigger branch is: ${BASE_BRANCH}"
 
@@ -61,15 +61,14 @@ pipeline {
         stage('Create Feature Branch') {
             steps {
                 script {
-                    BRANCH_NAME = "feature-${env.BUILD_NUMBER}"
-                    echo "Creating a new branch from ${BASE_BRANCH} → ${BRANCH_NAME}"
+                    GIT_BRANCH = "feature-${env.BUILD_NUMBER}"
+                    echo "Creating new branch: ${GIT_BRANCH} from ${BASE_BRANCH}"
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${BRANCH_NAME}
-                            git push origin ${BRANCH_NAME}
+                            git checkout -b ${GIT_BRANCH}
+                            git push origin ${GIT_BRANCH}
                         """
                     }
-                    env.GIT_BRANCH = BRANCH_NAME
                 }
             }
         }
@@ -78,7 +77,7 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    echo "Setting up Python virtual environment"
+                    echo "Building venv"
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
                     . venv/bin/activate
                     venv/bin/pip install --upgrade pip
@@ -110,9 +109,9 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        env.DEPLOY_SUCCESS = 'true'
+                        DEPLOY_SUCCESS = 'true'
                     } catch (Exception e) {
-                        env.DEPLOY_SUCCESS = 'false'
+                        DEPLOY_SUCCESS = 'false'
                         error("Deployment failed: ${e.message}")
                     }
                 }
@@ -122,27 +121,27 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith('feature-') && env.DEPLOY_SUCCESS == 'true'
+                    return GIT_BRANCH.startsWith('feature-') && DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
                 script {
                     try {
-                        echo "Merging ${env.GIT_BRANCH} into main"
+                        echo "Merging ${GIT_BRANCH} into main"
                         withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
-                            sh '''
+                            sh """
                                 git config user.name "jenkins"
                                 git config user.email "jenkins@example.com"
                                 git checkout main
                                 git pull origin main
                                 git merge --no-ff ${GIT_BRANCH}
                                 git push origin main
-                            '''
+                            """
                         }
-                        env.MERGE_SUCCESS = 'true'
+                        MERGE_SUCCESS = 'true'
                     } catch (Exception e) {
-                        env.MERGE_SUCCESS = 'false'
-                        error("Merge failed: ${e.message}")
+                        MERGE_SUCCESS = 'false'
+                        error("Merge to main failed: ${e.message}")
                     }
                 }
             }
@@ -153,14 +152,15 @@ pipeline {
         always {
             script {
                 def slack = load 'slack_notifications.groovy'
-                def message = slack.constructSlackMessage(
+                def msg = slack.constructSlackMessage(
                     env.BUILD_NUMBER,
                     env.BUILD_URL,
-                    env.MERGE_SUCCESS == 'true',
-                    env.DEPLOY_SUCCESS == 'true'
+                    MERGE_SUCCESS == 'true',
+                    DEPLOY_SUCCESS == 'true'
                 )
-                def color = (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? 'good' : 'danger'
-                slack.sendSlackNotification(message, color)
+                slack.sendSlackNotification(msg,
+                    (MERGE_SUCCESS == 'true' && DEPLOY_SUCCESS == 'true') ? "good" : "danger"
+                )
             }
         }
     }  // Close post block
