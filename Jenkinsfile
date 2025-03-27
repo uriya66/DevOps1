@@ -39,7 +39,7 @@ pipeline {
                     if (!BASE_BRANCH) {
                         error("Could not detect triggering branch")  // Fail if detection fails
                     }
-                    echo "Trigger branch is: ${BASE_BRANCH}"  // Log detected branch
+                    echo "Trigger branch is: ${BASE_BRANCH}"   // Log detected branch
 
                     checkout([
                         $class: 'GitSCM',
