@@ -41,7 +41,7 @@ pipeline {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
                         echo "Authenticating SSH connection to GitHub"
-                        sh 'ssh-add -l'   # List loaded SSH keys
+                        sh 'ssh-add -l'   // List loaded SSH keys
                         sh '''
                             if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
                                 echo "SSH connection successful"
