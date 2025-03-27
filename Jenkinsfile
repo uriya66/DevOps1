@@ -21,10 +21,10 @@ pipeline {
                         echo "Starting SSH Agent"
                         sh 'ssh-add -l'
                         sh '''
-                            if ssh -o StrictHostKeyChecking=no -T git@github.com | grep -q "successfully authenticated"; then
-                                echo "SSH OK"
+                            if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+                                echo "SSH connection successful"
                             else
-                                echo "SSH FAIL"
+                                echo "ERROR: SSH authentication failed"
                                 exit 1
                             fi
                         '''
