@@ -10,6 +10,7 @@ pipeline {
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Branch name for each build
         GIT_BRANCH = ''  // Will hold the real branch name
         DEPLOY_SUCCESS = 'false'  // Deployment status
+        MERGE_SUCCESS = 'false'   // Merge status
     }
 
     stages {
@@ -68,7 +69,7 @@ pipeline {
                             git push origin ${BRANCH_NAME}
                         """
                     }
-                    env.GIT_BRANCH = BRANCH_NAME  // ✅ Set environment variable correctly
+                    env.GIT_BRANCH = BRANCH_NAME
                 }
             }
         }
@@ -110,15 +111,15 @@ pipeline {
             steps {
                 script {
                     try {
+                        echo "Running deployment script"
                         sh '''
                             set -e
-                            echo "Running deployment script"
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        DEPLOY_SUCCESS = 'true'
+                        env.DEPLOY_SUCCESS = 'true'
                     } catch (Exception e) {
-                        DEPLOY_SUCCESS = 'false'
+                        env.DEPLOY_SUCCESS = 'false'
                         error("Deployment failed: ${e.message}")
                     }
                 }
@@ -128,21 +129,29 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
+                    echo "DEBUG: GIT_BRANCH = ${env.GIT_BRANCH}"
+                    echo "DEBUG: DEPLOY_SUCCESS = ${env.DEPLOY_SUCCESS}"
                     return env.GIT_BRANCH?.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
                 script {
-                    echo "Merging ${env.GIT_BRANCH} into main"
-                    withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
-                        sh """
-                            git config user.name "jenkins"
-                            git config user.email "jenkins@example.com"
-                            git checkout main
-                            git pull origin main
-                            git merge --no-ff ${env.GIT_BRANCH}
-                            git push origin main
-                        """
+                    try {
+                        echo "Merging ${env.GIT_BRANCH} into main"
+                        withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
+                            sh """
+                                git config user.name "jenkins"
+                                git config user.email "jenkins@example.com"
+                                git checkout main
+                                git pull origin main
+                                git merge --no-ff ${env.GIT_BRANCH}
+                                git push origin main
+                            """
+                        }
+                        env.MERGE_SUCCESS = 'true'
+                    } catch (Exception e) {
+                        env.MERGE_SUCCESS = 'false'
+                        error("Merge to main failed: ${e.message}")
                     }
                 }
             }
@@ -152,17 +161,21 @@ pipeline {
     post {
         always {
             script {
-                def slack = load 'slack_notifications.groovy'
-                def msg = slack.constructSlackMessage(
-                    env.BUILD_NUMBER,
-                    env.BUILD_URL,
-                    false,  // will be ignored if Merge failed
-                    env.DEPLOY_SUCCESS == 'true'
-                )
-                def mergeSuccess = currentBuild.rawBuild.getLog().any { it.contains("git push origin main") }
-                slack.sendSlackNotification(msg,
-                    (mergeSuccess && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
-                )
+                try {
+                    def slack = load 'slack_notifications.groovy'
+                    def msg = slack.constructSlackMessage(
+                        env.BUILD_NUMBER,
+                        env.BUILD_URL,
+                        env.MERGE_SUCCESS == 'true',
+                        env.DEPLOY_SUCCESS == 'true'
+                    )
+                    slack.sendSlackNotification(
+                        msg,
+                        (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
+                    )
+                } catch (e) {
+                    echo "Slack notification failed: ${e.message}"
+                }
             }
         }
     }  // Close post block
