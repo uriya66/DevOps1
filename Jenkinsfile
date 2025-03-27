@@ -1,24 +1,36 @@
 pipeline {
-    agent any  // Run on any available Jenkins agent
+    agent any  // Use any available Jenkins agent for the build
 
     options {
-        disableConcurrentBuilds()  // Prevent simultaneous builds
+        disableConcurrentBuilds()  // Prevent concurrent builds
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // SSH URL for GitHub
-        BASE_BRANCH = ''  // Will hold the source branch (main or feature-test)
-        GIT_BRANCH = ''  // Will hold the new feature-* branch name
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Git repository over SSH
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Branch name for each build
+        GIT_BRANCH = ''  // Will hold the real branch name
         DEPLOY_SUCCESS = 'false'  // Deployment status
-        MERGE_SUCCESS = 'false'  // Merge status
     }
 
     stages {
+        stage('Skip Redundant Merge Builds') {
+            steps {
+                script {
+                    def lastCommitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+                    if (lastCommitMessage.startsWith("Merge remote-tracking branch")) {
+                        echo "Skipping build: This is a merge commit."
+                        currentBuild.result = 'SUCCESS'
+                        error("Stopping Pipeline: Merge commit detected.")
+                    }
+                }
+            }
+        }
+
         stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
-                        echo "Starting SSH Agent and verifying authentication"
+                        echo "Starting SSH Agent and verifying authentication."
                         sh 'ssh-add -l'
                         sh '''
                             if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
@@ -35,54 +47,42 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                script {
-                    echo "Checking out the triggering branch"
-                    BASE_BRANCH = sh(
-                        script: "git log -1 --pretty=format:%D | grep -oE 'origin/(main|feature-test)' | cut -d/ -f2",
-                        returnStdout: true
-                    ).trim()
-                    if (!BASE_BRANCH) {
-                        error("Could not detect base branch (main or feature-test)")
-                    }
-                    echo "Trigger branch is: ${BASE_BRANCH}"
-
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: "*/${BASE_BRANCH}"]],
-                        userRemoteConfigs: [[
-                            url: REPO_URL,
-                            credentialsId: 'Jenkins-GitHub-SSH'
-                        ]]
-                    ])
-                }
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: REPO_URL,
+                        credentialsId: 'Jenkins-GitHub-SSH'
+                    ]]
+                ])
             }
         }
 
         stage('Create Feature Branch') {
             steps {
                 script {
-                    GIT_BRANCH = "feature-${env.BUILD_NUMBER}"
-                    echo "Creating new branch: ${GIT_BRANCH} from ${BASE_BRANCH}"
+                    echo "Creating feature branch ${BRANCH_NAME}"
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${GIT_BRANCH}
-                            git push origin ${GIT_BRANCH}
+                            git checkout -b ${BRANCH_NAME}
+                            git push origin ${BRANCH_NAME}
                         """
                     }
+                    env.GIT_BRANCH = BRANCH_NAME  // ✅ Set environment variable correctly
                 }
             }
         }
 
         stage('Build') {
             steps {
-                sh '''
+                sh """
                     set -e
-                    echo "Building venv"
+                    echo "Setting up virtualenv"
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
                     . venv/bin/activate
-                    venv/bin/pip install --upgrade pip
-                    venv/bin/pip install flask requests pytest gunicorn
-                '''
+                    venv/bin/python -m pip install --upgrade pip
+                    venv/bin/python -m pip install flask requests pytest gunicorn
+                """
             }
         }
 
@@ -90,16 +90,23 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    echo "Running tests"
+                    echo "Running Flask app for testing..."
                     . venv/bin/activate
                     gunicorn -w 1 -b 127.0.0.1:5000 app:app &
                     sleep 3
-                    venv/bin/pytest test_app.py
+                    echo "Running pytest"
+                    venv/bin/python -m pytest test_app.py
+                    pkill gunicorn || true
                 '''
             }
         }
 
         stage('Deploy') {
+            when {
+                expression {
+                    return currentBuild.result == null || currentBuild.result == 'SUCCESS'
+                }
+            }
             steps {
                 script {
                     try {
@@ -121,27 +128,21 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return GIT_BRANCH.startsWith('feature-') && DEPLOY_SUCCESS == 'true'
+                    return env.GIT_BRANCH?.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
                 script {
-                    try {
-                        echo "Merging ${GIT_BRANCH} into main"
-                        withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
-                            sh """
-                                git config user.name "jenkins"
-                                git config user.email "jenkins@example.com"
-                                git checkout main
-                                git pull origin main
-                                git merge --no-ff ${GIT_BRANCH}
-                                git push origin main
-                            """
-                        }
-                        MERGE_SUCCESS = 'true'
-                    } catch (Exception e) {
-                        MERGE_SUCCESS = 'false'
-                        error("Merge to main failed: ${e.message}")
+                    echo "Merging ${env.GIT_BRANCH} into main"
+                    withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
+                        sh """
+                            git config user.name "jenkins"
+                            git config user.email "jenkins@example.com"
+                            git checkout main
+                            git pull origin main
+                            git merge --no-ff ${env.GIT_BRANCH}
+                            git push origin main
+                        """
                     }
                 }
             }
@@ -155,11 +156,12 @@ pipeline {
                 def msg = slack.constructSlackMessage(
                     env.BUILD_NUMBER,
                     env.BUILD_URL,
-                    MERGE_SUCCESS == 'true',
-                    DEPLOY_SUCCESS == 'true'
+                    false,  // will be ignored if Merge failed
+                    env.DEPLOY_SUCCESS == 'true'
                 )
+                def mergeSuccess = currentBuild.rawBuild.getLog().any { it.contains("git push origin main") }
                 slack.sendSlackNotification(msg,
-                    (MERGE_SUCCESS == 'true' && DEPLOY_SUCCESS == 'true') ? "good" : "danger"
+                    (mergeSuccess && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
                 )
             }
         }
