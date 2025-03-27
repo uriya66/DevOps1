@@ -25,6 +25,7 @@ def constructSlackMessage(buildNumber, buildUrl) {
         // Construct Flask app URL
         def appUrl = "http://${publicIp}:5000"
 
+
         // Build full Slack message with clean format (no localhost)
         return """
 *✅ Jenkins Build Completed!*
