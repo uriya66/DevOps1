@@ -1,13 +1,15 @@
 pipeline {
-    agent any
+    agent any  // Use any available Jenkins agent
 
     options {
-        disableConcurrentBuilds()
+        disableConcurrentBuilds() // Prevent multiple builds at the same time
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Git repository URL over SSH
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Dynamic feature branch per build
+        DEPLOY_SUCCESS = 'false'  // Deployment status
+        MERGE_SUCCESS = 'false'  // Merge status
     }
 
     stages {
@@ -45,14 +47,20 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    userRemoteConfigs: [[
-                        url: REPO_URL,
-                        credentialsId: 'Jenkins-GitHub-SSH'
-                    ]]
-                ])
+                script {
+                    // Detect the real trigger branch (main or feature-test)
+                    def triggerBranch = sh(script: "git branch --show-current || git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    echo "Checking out from branch: ${triggerBranch}"
+                    
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${triggerBranch}"]],
+                        userRemoteConfigs: [[
+                            url: REPO_URL,
+                            credentialsId: 'Jenkins-GitHub-SSH'
+                        ]]
+                    ])
+                }
             }
         }
 
@@ -64,14 +72,14 @@ pipeline {
             }
             steps {
                 script {
-                    echo "Creating feature branch ${env.BRANCH_NAME}"
+                    echo "Creating feature branch ${BRANCH_NAME}"
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${env.BRANCH_NAME}
-                            git push origin ${env.BRANCH_NAME}
+                            git checkout -b ${BRANCH_NAME}
+                            git push origin ${BRANCH_NAME}
                         """
                     }
-                    env.GIT_BRANCH = env.BRANCH_NAME
+                    env.GIT_BRANCH = BRANCH_NAME
                 }
             }
         }
@@ -105,6 +113,11 @@ pipeline {
         }
 
         stage('Deploy') {
+            when {
+                expression {
+                    return currentBuild.result == null || currentBuild.result == 'SUCCESS'
+                }
+            }
             steps {
                 script {
                     try {
@@ -114,12 +127,9 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        // Set success flag using currentBuild object
-                        currentBuild.description = "deploy=success"
-                        currentBuild.displayName = "#${env.BUILD_NUMBER}"
-                        currentBuild.deploySuccess = true
+                        DEPLOY_SUCCESS = 'true'
                     } catch (Exception e) {
-                        currentBuild.deploySuccess = false
+                        DEPLOY_SUCCESS = 'false'
                         error("Deployment failed: ${e.message}")
                     }
                 }
@@ -129,7 +139,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return (env.GIT_BRANCH?.startsWith("feature-") && currentBuild.deploySuccess == true)
+                    return env.GIT_BRANCH?.startsWith("feature-") && DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
@@ -146,9 +156,9 @@ pipeline {
                                 git push origin main
                             """
                         }
-                        currentBuild.mergeSuccess = true
+                        MERGE_SUCCESS = 'true'
                     } catch (Exception e) {
-                        currentBuild.mergeSuccess = false
+                        MERGE_SUCCESS = 'false'
                         error("Merge to main failed: ${e.message}")
                     }
                 }
@@ -164,10 +174,10 @@ pipeline {
                     def message = slack.constructSlackMessage(
                         env.BUILD_NUMBER,
                         env.BUILD_URL,
-                        currentBuild.mergeSuccess == true,
-                        currentBuild.deploySuccess == true
+                        MERGE_SUCCESS == 'true',
+                        DEPLOY_SUCCESS == 'true'
                     )
-                    def color = (currentBuild.mergeSuccess == true && currentBuild.deploySuccess == true) ? "good" : "danger"
+                    def color = (MERGE_SUCCESS == 'true' && DEPLOY_SUCCESS == 'true') ? "good" : "danger"
                     slack.sendSlackNotification(message, color)
                 } catch (Exception e) {
                     echo "Slack notification error: ${e.message}"
