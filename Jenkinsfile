@@ -47,19 +47,14 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                script {
-                    def triggerBranch = env.BRANCH_NAME  // Get the branch that triggered the pipeline
-                    echo "Checking out from trigger branch: ${triggerBranch}"
-
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: "*/${triggerBranch}"]],
-                        userRemoteConfigs: [[
-                            url: REPO_URL,
-                            credentialsId: 'Jenkins-GitHub-SSH'
-                        ]]
-                    ])
-                }
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/feature-test']],
+                    userRemoteConfigs: [[
+                        url: REPO_URL,
+                        credentialsId: 'Jenkins-GitHub-SSH'
+                    ]]
+                ])
             }
         }
 
@@ -185,4 +180,3 @@ pipeline {
         }
     }  // Close post block
 }  // Close pipeline block
-
