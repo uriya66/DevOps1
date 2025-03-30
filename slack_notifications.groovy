@@ -1,53 +1,70 @@
-// Retrieves Git commit details and constructs a formatted Slack message
-// Function to construct Slack message with Git details
-def constructSlackMessage(buildNumber, buildUrl) {
+// Construct a Slack message with Git info and app links
+def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySuccess = null) {
     try {
-        // Retrieve commit ID
+        // Retrieve commit ID from Git
         def commitId = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
-        // Retrieve commit message
+
+        // Retrieve commit message from latest commit
         def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+
         // Retrieve the current branch name
         def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-        // Generate GitHub commit URL
+
+        // Generate GitHub commit URL for direct reference
         def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"
-        // Retrieve build duration
+
+        // Get pipeline duration in readable format
         def duration = "${currentBuild.durationString.replace(' and counting', '')}"
 
-        // Retrieve the public IP address from the Jenkins environment
-        def jenkinsUrl = buildUrl.split('/job/')[0] // Extract the Jenkins address from the existing message
-        def publicIp = jenkinsUrl.replace("http://", "").replace(":8080", "") // Extract the IP from the Jenkins URL
-        def appUrl = "http://${publicIp}:5000" // Flask address
-        
-        // Construct the Slack message
+        // Extract Jenkins base URL from full build URL
+        def jenkinsUrl = buildUrl.split('/job/')[0]
+
+        // Get dynamic public IP of the server
+        def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()
+
+        // Construct Flask app URL
+        def appUrl = "http://${publicIp}:5000"
+
+        // Build result summary (merge/deploy)
+        def resultNote = ""
+        if (mergeSuccess != null && deploySuccess != null) {
+            resultNote += mergeSuccess ? "*Merge:* ✅ Successful\n" : "*Merge:* ❌ Failed\n"
+            resultNote += deploySuccess ? "*Deploy:* ✅ Successful\n" : "*Deploy:* ❌ Failed\n"
+        }
+
+        // Build full Slack message with clean format (no localhost)
         return """
-        ✅ *Jenkins Build Completed!*
-        *Pipeline:* #${buildNumber}
-        *Branch:* ${branch}
-        *Commit:* [${commitId}](${commitUrl})
-        *Message:* ${commitMessage}
-        *Duration:* ${duration}
-        *Pipeline Link:* [View Pipeline](${buildUrl})
-        *Application Link:* [Open Flask App](${appUrl})
-        """
+*✅ Jenkins Build Completed!*
+*Pipeline:* #${buildNumber}
+*Branch:* ${branch}
+*Commit:* [${commitId}](${commitUrl})
+*Message:* ${commitMessage}
+*Duration:* ${duration}
+${resultNote}
+*Pipeline Link:* ${buildUrl}
+*Application Links:*
+- ${appUrl}
+        """.stripIndent()
+
     } catch (Exception e) {
-        echo "⚠️ Failed to construct Slack message: ${e.message}"
-        return "⚠️ Error generating Slack message."
+        echo "Slack message error: ${e.message}"  // Log error if message construction fails
+        return "*❌ Error constructing Slack message*\nReason: ${e.message}"  // Return fallback message
     }
 }
 
-// Sends a Slack notification with the given message and color
+// Send a message to Slack channel using Jenkins credentials
 def sendSlackNotification(String message, String color) {
     try {
         slackSend(
-            channel: '#jenkis_alerts',
-            tokenCredentialId: 'Jenkins-Slack-Token',
-            message: message,
-            color: color
+            channel: '#jenkis_alerts',  // Slack channel name
+            tokenCredentialId: 'Jenkins-Slack-Token',  // Credential ID for Slack bot
+            message: message,  // Slack message content
+            color: color  // Slack color code: good, warning, danger
         )
     } catch (Exception e) {
-        echo "ERROR: Slack notification failed: ${e.message}"
+        echo "Slack notification failed: ${e.message}"  // Log if Slack sending fails
     }
 }
 
-// Return this script so Jenkinsfile can use it
-return this
+// Return this script object so it can be load to Jenkinsfile
+return this  // Return this object to Jenkinsfile
