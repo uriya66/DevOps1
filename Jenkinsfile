@@ -62,7 +62,7 @@ pipeline {
             when {
                 expression {
                     // Create new feature branch only if triggered branch is main or feature-test
-                    return (env.GIT_BRANCH == 'main' || env.GIT_BRANCH == 'feature-test
+                    return (env.GIT_BRANCH == 'main' || env.GIT_BRANCH == 'feature-test'
                 }
             }
             steps {
