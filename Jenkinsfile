@@ -1,15 +1,13 @@
 pipeline {
-    agent any  // Use any available Jenkins agent
+    agent any
 
     options {
-        disableConcurrentBuilds() // Prevent multiple builds at the same time
+        disableConcurrentBuilds()
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Git repository URL over SSH
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Dynamic feature branch per build
-        DEPLOY_SUCCESS = 'false'  // Deployment status (must be updated via env)
-        MERGE_SUCCESS = 'false'  // Merge status (must be updated via env)
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -66,14 +64,14 @@ pipeline {
             }
             steps {
                 script {
-                    echo "Creating feature branch ${BRANCH_NAME}"
+                    echo "Creating feature branch ${env.BRANCH_NAME}"
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${BRANCH_NAME}
-                            git push origin ${BRANCH_NAME}
+                            git checkout -b ${env.BRANCH_NAME}
+                            git push origin ${env.BRANCH_NAME}
                         """
                     }
-                    env.GIT_BRANCH = BRANCH_NAME
+                    env.GIT_BRANCH = env.BRANCH_NAME
                 }
             }
         }
@@ -82,7 +80,7 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    echo "Setting up virtual env"
+                    echo "Setting up virtualenv"
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
                     . venv/bin/activate
                     venv/bin/python -m pip install --upgrade pip
@@ -107,11 +105,6 @@ pipeline {
         }
 
         stage('Deploy') {
-            when {
-                expression {
-                    return currentBuild.result == null || currentBuild.result == 'SUCCESS'
-                }
-            }
             steps {
                 script {
                     try {
@@ -121,9 +114,12 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        env.DEPLOY_SUCCESS = 'true'  // Must use env to pass status across stages
+                        // Set success flag using currentBuild object
+                        currentBuild.description = "deploy=success"
+                        currentBuild.displayName = "#${env.BUILD_NUMBER}"
+                        currentBuild.deploySuccess = true
                     } catch (Exception e) {
-                        env.DEPLOY_SUCCESS = 'false'  // Set to false if deployment fails
+                        currentBuild.deploySuccess = false
                         error("Deployment failed: ${e.message}")
                     }
                 }
@@ -133,7 +129,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
+                    return (env.GIT_BRANCH?.startsWith("feature-") && currentBuild.deploySuccess == true)
                 }
             }
             steps {
@@ -150,9 +146,9 @@ pipeline {
                                 git push origin main
                             """
                         }
-                        env.MERGE_SUCCESS = 'true'  // Set merge status to true after success
+                        currentBuild.mergeSuccess = true
                     } catch (Exception e) {
-                        env.MERGE_SUCCESS = 'false'  // Set to false if merge fails
+                        currentBuild.mergeSuccess = false
                         error("Merge to main failed: ${e.message}")
                     }
                 }
@@ -168,10 +164,10 @@ pipeline {
                     def message = slack.constructSlackMessage(
                         env.BUILD_NUMBER,
                         env.BUILD_URL,
-                        env.MERGE_SUCCESS == 'true',
-                        env.DEPLOY_SUCCESS == 'true'
+                        currentBuild.mergeSuccess == true,
+                        currentBuild.deploySuccess == true
                     )
-                    def color = (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
+                    def color = (currentBuild.mergeSuccess == true && currentBuild.deploySuccess == true) ? "good" : "danger"
                     slack.sendSlackNotification(message, color)
                 } catch (Exception e) {
                     echo "Slack notification error: ${e.message}"
