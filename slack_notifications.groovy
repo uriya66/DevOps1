@@ -1,79 +1,52 @@
-// Retrieves Git commit details and constructs a formatted Slack message
-// Function to construct Slack message with Git details and optional merge/deploy status
-
+// Construct Slack message with Git commit info and deployment status
 def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySuccess = null) {
     try {
-        // Retrieve commit ID from Git
         def commitId = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
-
-        // Retrieve commit message from latest commit
         def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-
-        // Retrieve the current branch name
-        def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-
-        // Generate GitHub commit URL for direct reference
+        def branch = env.GIT_BRANCH ?: sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
         def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"
-
-        // Get pipeline duration in readable format
         def duration = "${currentBuild.durationString.replace(' and counting', '')}"
+        def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()
+        def appUrl = "http://${publicIp}:5000"
 
-        // Extract Jenkins base URL from full build URL
-        def jenkinsUrl = buildUrl.split('/job/')[0]  // Get base Jenkins URL
-
-        // Extract public IP from Jenkins base URL (assumes format: http://<ip>:8080)
-        def publicIp = jenkinsUrl.replace("http://", "").replace(":8080", "")  // Get public IP
-
-        // Generate application link using extracted IP and Flask port
-        def appUrl = "http://${publicIp}:5000"  // Target Flask app link
-
-        // Start composing the Slack message with base content
         def message = """
-Jenkins Build Completed!
+:white_check_mark: Jenkins Build Completed!
 *Pipeline:* #${buildNumber}
 *Branch:* ${branch}
 *Commit:* [${commitId}](${commitUrl})
 *Message:* ${commitMessage}
 *Duration:* ${duration}
-*Pipeline Link:* [View Pipeline](${buildUrl})
-*Application Link:* [Open Flask App](${appUrl})
 """
 
-        // Append merge status only if this is feature-test branch
-        if (branch == 'feature-test' && mergeSuccess != null) {
-            message += "\n" + (mergeSuccess ? "Merge succeeded." : "Merge failed.")  // Add merge status line
+        if (mergeSuccess != null && deploySuccess != null) {
+            message += mergeSuccess ? "*Merge:* ✅ Successful\n" : "*Merge:* ❌ Failed\n"
+            message += deploySuccess ? "*Deploy:* ✅ Successful\n" : "*Deploy:* ❌ Failed\n"
         }
 
-        // Append deploy status only if this is feature-test branch and deploy status is provided
-        if (branch == 'feature-test' && deploySuccess != null) {
-            if (!mergeSuccess) {
-                message += "\nDeploy skipped due to merge failure."  // Indicate deploy was skipped
-            } else {
-                message += "\n" + (deploySuccess ? "Deploy succeeded." : "Deploy failed.")  // Add deploy result
-            }
-        }
+        message += "*Pipeline Link:* ${buildUrl}\n"
+        message += "*Application Link:* ${appUrl}"
 
-        return message  // Return the fully composed Slack message
+        return message
 
     } catch (Exception e) {
-        echo "Failed to construct Slack message: ${e.message}"  // Log message error
-        return "Error generating Slack message."  // Return fallback message in case of exception
+        echo "Slack message generation error: ${e.message}"
+        return "*❌ Error constructing Slack message*\nReason: ${e.message}"
     }
 }
 
-// Sends a Slack notification with the given message and color indicator
+// Send Slack notification to specific channel
 def sendSlackNotification(String message, String color) {
     try {
         slackSend(
-            channel: '#jenkis_alerts',  // Slack channel to send the message to
-            tokenCredentialId: 'Jenkins-Slack-Token',  // Slack API token from Jenkins credentials
-            message: message,  // Message body to send
-            color: color  // Color bar on Slack (good/warning/danger)
+            channel: '#jenkis_alerts',
+            tokenCredentialId: 'Jenkins-Slack-Token',
+            message: message,
+            color: color
         )
     } catch (Exception e) {
-        echo "ERROR: Slack notification failed: ${e.message}"  // Log Slack error
+        echo "Slack notification failed: ${e.message}"
     }
 }
 
-// Return this script object so it can be loaded from Jenkinsfile
 return this
+
