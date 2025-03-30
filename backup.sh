@@ -24,3 +24,5 @@ tar --exclude='./.git' --exclude='./venv' --exclude='./backup' \
     -czf "$BACKUP_FILE" .
 
 echo " Backup completed: $BACKUP_FILE"
+
+

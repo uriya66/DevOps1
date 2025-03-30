@@ -1,42 +1,42 @@
 #!/bin/bash
-set -e  # Exit immediately if any command fails
+set -e  # Exit on command failure
 
 SERVICE_NAME="gunicorn"
 
 echo "Deploying application with Gunicorn..."
 
-# Activate or create venv
-if [ -d "venv" ]; then
-    source venv/bin/activate
-else
+# Ensure venv exists
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
     python3 -m venv venv
-    source venv/bin/activate
 fi
 
-pip install -U pip
-pip install -r requirements.txt
+. venv/bin/activate
 
-# Reload systemd services to avoid warnings
-sudo systemctl daemon-reload
+# Install dependencies if missing
+pip install --upgrade pip
+for package in flask gunicorn requests pytest; do
+    pip show $package || pip install $package
+done
 
-# Restart Gunicorn safely
+# Reload systemd units if needed
+sudo -n systemctl daemon-reload
+
+# Stop Gunicorn if running
 if systemctl is-active --quiet $SERVICE_NAME; then
-    sudo systemctl stop $SERVICE_NAME
+    echo "Stopping Gunicorn service..."
+    sudo -n systemctl stop $SERVICE_NAME
 fi
 
-sudo systemctl start $SERVICE_NAME
-sudo systemctl enable $SERVICE_NAME
+# Restart Gunicorn service
+echo "Restarting Gunicorn service..."
+sudo -n systemctl restart $SERVICE_NAME
 
-sleep 3  # Allow service startup time
-
-if systemctl is-active --quiet $SERVICE_NAME; then
-    echo "Deployment successful! Gunicorn is running."
-else
-    echo "Deployment failed! Check service logs."
-    journalctl -u $SERVICE_NAME --no-pager | tail -20
+# Check service status
+if ! systemctl is-active --quiet $SERVICE_NAME; then
+    echo "ERROR: Gunicorn failed to start!"
     exit 1
 fi
 
-PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
-echo "App available at http://${PUBLIC_IP}:5000"
+echo "Deployment completed successfully. App is running on public IP."
 

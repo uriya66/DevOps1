@@ -1,28 +1,26 @@
 pipeline {
-    agent any // Use any available Jenkins agent
+    agent any  // Use any available Jenkins agent
 
     options {
-        disableConcurrentBuilds() // Avoid concurrent builds
+        disableConcurrentBuilds() // Prevent multiple builds at the same time
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git' // Git repository URL
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Dynamic feature branch per build
-        DEPLOY_SUCCESS = 'false' // Deployment status initialized as false
-        MERGE_SUCCESS = 'false' // Merge status initialized as false
-        GIT_BRANCH = '' // Placeholder for the actual git branch name
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"
+        DEPLOY_SUCCESS = 'false'
+        MERGE_SUCCESS = 'false'
     }
 
     stages {
-
         stage('Skip Redundant Merge Builds') {
             steps {
                 script {
                     def lastCommitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
                     if (lastCommitMessage.startsWith("Merge remote-tracking branch")) {
-                        echo "Skipping redundant merge build."
+                        echo "Skipping build: Merge commit detected."
                         currentBuild.result = 'SUCCESS'
-                        error("Stopping pipeline - redundant merge commit detected.")
+                        error("Stopping Pipeline: Merge commit.")
                     }
                 }
             }
@@ -31,18 +29,9 @@ pipeline {
         stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    script {
-                        echo "Starting SSH Agent and verifying authentication."
-                        sh 'ssh-add -l'
-                        sh '''
-                            if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
-                                echo "SSH authentication successful"
-                            else
-                                echo "ERROR: SSH authentication failed"
-                                exit 1
-                            fi
-                        '''
-                    }
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no -T git@github.com || exit 1
+                    '''
                 }
             }
         }
@@ -50,15 +39,18 @@ pipeline {
         stage('Checkout & Create Feature Branch') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
+                    sh '''
+                        # Checkout to feature-test branch
+                        git checkout feature-test
+
+                        # Create new feature branch from feature-test
+                        git checkout -b ${BRANCH_NAME}
+
+                        # Push new feature branch to origin
+                        git push origin ${BRANCH_NAME}
+                    '''
                     script {
-                        echo "Force pushing latest code to feature-test and creating feature-${env.BUILD_NUMBER}"
-                        sh '''
-                            git checkout -B feature-test
-                            git push -f origin feature-test
-                            git checkout -b ${BRANCH_NAME}
-                            git push origin ${BRANCH_NAME}
-                        '''
-                        env.GIT_BRANCH = "${BRANCH_NAME}"
+                        env.GIT_BRANCH = BRANCH_NAME
                     }
                 }
             }
@@ -68,11 +60,9 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    echo "Setting up virtualenv and installing dependencies"
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
                     . venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
+                    pip install --upgrade pip flask requests pytest gunicorn
                 '''
             }
         }
@@ -81,12 +71,12 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    echo "Running tests with pytest"
                     . venv/bin/activate
-                    gunicorn -w 1 -b 127.0.0.1:5001 app:app &  # Use port 5001 to avoid conflict
+                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &
+                    GUNICORN_PID=$!
                     sleep 3
                     pytest test_app.py
-                    pkill -f gunicorn
+                    kill $GUNICORN_PID
                 '''
             }
         }
@@ -95,7 +85,6 @@ pipeline {
             steps {
                 script {
                     try {
-                        echo "Running deployment script"
                         sh '''
                             chmod +x deploy.sh
                             ./deploy.sh
@@ -112,20 +101,19 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
+                    return env.DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
                         try {
-                            echo "Merging ${env.GIT_BRANCH} to main"
                             sh '''
                                 git config user.name "jenkins"
                                 git config user.email "jenkins@example.com"
                                 git checkout main
                                 git pull origin main
-                                git merge --no-ff ${GIT_BRANCH}
+                                git merge --no-ff ${BRANCH_NAME}
                                 git push origin main
                             '''
                             env.MERGE_SUCCESS = 'true'
@@ -146,8 +134,8 @@ pipeline {
                 def message = slack.constructSlackMessage(
                     env.BUILD_NUMBER,
                     env.BUILD_URL,
-                    env.MERGE_SUCCESS == 'true',
-                    env.DEPLOY_SUCCESS == 'true'
+                    env.MERGE_SUCCESS,
+                    env.DEPLOY_SUCCESS
                 )
                 def color = (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
                 slack.sendSlackNotification(message, color)
