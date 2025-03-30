@@ -30,7 +30,14 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no -T git@github.com || exit 1
+                        # Check GitHub SSH authentication without failing on the expected response
+                        ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"
+                        if [ $? -eq 0 ]; then
+                            echo "SSH authentication successful"
+                        else
+                            echo "SSH authentication failed"
+                            exit 1
+                        fi
                     '''
                 }
             }
