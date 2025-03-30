@@ -2,7 +2,7 @@ pipeline {
     agent any  // Use any available Jenkins agent
 
     options {
-        disableConcurrentBuilds() // Prevent multiple builds at the same time
+        disableConcurrentBuilds()  // Prevent multiple builds at the same time
     }
 
     environment {
