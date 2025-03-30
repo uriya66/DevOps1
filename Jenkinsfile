@@ -61,7 +61,8 @@ pipeline {
         stage('Create Feature Branch') {
             when {
                 expression {
-                    return !(env.GIT_BRANCH?.startsWith("feature-") ?: false)
+                    // Create new feature branch only if triggered branch is main or feature-test
+                    return (env.GIT_BRANCH == 'main' || env.GIT_BRANCH == 'feature-test
                 }
             }
             steps {
@@ -133,7 +134,9 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
+                    def conditionMet = env.GIT_BRANCH?.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
+                    echo "Merge condition is ${conditionMet}, branch=${env.GIT_BRANCH}, deploySuccess=${env.DEPLOY_SUCCESS}"
+                    return conditionMet
                 }
             }
             steps {
