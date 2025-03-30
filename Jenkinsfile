@@ -121,9 +121,9 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        DEPLOY_SUCCESS = 'true'
+                        env.DEPLOY_SUCCESS = 'true'
                     } catch (Exception e) {
-                        DEPLOY_SUCCESS = 'false'
+                        env.DEPLOY_SUCCESS = 'false'
                         error("Deployment failed: ${e.message}")
                     }
                 }
@@ -133,7 +133,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith("feature-") && DEPLOY_SUCCESS == 'true'
+                    return env.GIT_BRANCH?.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
@@ -150,9 +150,9 @@ pipeline {
                                 git push origin main
                             """
                         }
-                        MERGE_SUCCESS = 'true'
+                        env.MERGE_SUCCESS = 'true'
                     } catch (Exception e) {
-                        MERGE_SUCCESS = 'false'
+                        env.MERGE_SUCCESS = 'false'
                         error("Merge to main failed: ${e.message}")
                     }
                 }
