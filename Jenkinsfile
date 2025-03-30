@@ -1,18 +1,20 @@
 pipeline {
-    agent any  // Use any available Jenkins agent
+    agent any // Use any available Jenkins agent
 
     options {
-        disableConcurrentBuilds()  // Avoid concurrent builds
+        disableConcurrentBuilds() // Avoid concurrent builds
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Git repository URL
-        FEATURE_BRANCH = "feature-${env.BUILD_NUMBER}"  // Dynamic feature branch per build
-        DEPLOY_SUCCESS = 'false'
-        MERGE_SUCCESS = 'false'
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git' // Git repository URL
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}" // Dynamic feature branch per build
+        DEPLOY_SUCCESS = 'false' // Deployment status initialized as false
+        MERGE_SUCCESS = 'false' // Merge status initialized as false
+        GIT_BRANCH = '' // Placeholder for the actual git branch name
     }
 
     stages {
+
         stage('Skip Redundant Merge Builds') {
             steps {
                 script {
@@ -20,39 +22,43 @@ pipeline {
                     if (lastCommitMessage.startsWith("Merge remote-tracking branch")) {
                         echo "Skipping redundant merge build."
                         currentBuild.result = 'SUCCESS'
-                        error("Stopping: merge commit detected.")
+                        error("Stopping pipeline - redundant merge commit detected.")
                     }
                 }
             }
         }
 
-        stage('Checkout') {
+        stage('Start SSH Agent') {
             steps {
-                sshagent(['Jenkins-GitHub-SSH']) {
-                    sh '''
-                        # Ensure all commits always go to feature-test
-                        git checkout -B feature-test
-                        git push -f origin feature-test
-                    '''
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
+                    script {
+                        echo "Starting SSH Agent and verifying authentication."
+                        sh 'ssh-add -l'
+                        sh '''
+                            if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+                                echo "SSH authentication successful"
+                            else
+                                echo "ERROR: SSH authentication failed"
+                                exit 1
+                            fi
+                        '''
+                    }
                 }
+            }
+        }
 
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/feature-test']],
-                    userRemoteConfigs: [[
-                        url: REPO_URL,
-                        credentialsId: 'Jenkins-GitHub-SSH'
-                    ]]
-                ])
-
-                script {
-                    sshagent(['Jenkins-GitHub-SSH']) {
-                        sh """
-                            # Create new isolated feature branch for current build
-                            git checkout -b ${FEATURE_BRANCH}
-                            git push origin ${FEATURE_BRANCH}
-                        """
-                        env.GIT_BRANCH = FEATURE_BRANCH  // Store active branch name
+        stage('Checkout & Create Feature Branch') {
+            steps {
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
+                    script {
+                        echo "Force pushing latest code to feature-test and creating feature-${env.BUILD_NUMBER}"
+                        sh '''
+                            git checkout -B feature-test
+                            git push -f origin feature-test
+                            git checkout -b ${BRANCH_NAME}
+                            git push origin ${BRANCH_NAME}
+                        '''
+                        env.GIT_BRANCH = "${BRANCH_NAME}"
                     }
                 }
             }
@@ -61,11 +67,11 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                    # Create Python venv and install dependencies
                     set -e
-                    python3 -m venv venv
+                    echo "Setting up virtualenv and installing dependencies"
+                    if [ ! -d "venv" ]; then python3 -m venv venv; fi
                     . venv/bin/activate
-                    pip install -U pip
+                    pip install --upgrade pip
                     pip install -r requirements.txt
                 '''
             }
@@ -74,14 +80,13 @@ pipeline {
         stage('Test') {
             steps {
                 sh '''
-                    # Ensure Gunicorn not already running, then test
                     set -e
-                    pkill gunicorn || true
+                    echo "Running tests with pytest"
                     . venv/bin/activate
-                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &
+                    gunicorn -w 1 -b 127.0.0.1:5001 app:app &  # Use port 5001 to avoid conflict
                     sleep 3
-                    python -m pytest test_app.py
-                    pkill gunicorn || true
+                    pytest test_app.py
+                    pkill -f gunicorn
                 '''
             }
         }
@@ -90,8 +95,8 @@ pipeline {
             steps {
                 script {
                     try {
+                        echo "Running deployment script"
                         sh '''
-                            # Run deploy script
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
@@ -106,26 +111,28 @@ pipeline {
 
         stage('Merge to Main') {
             when {
-                expression { env.DEPLOY_SUCCESS == 'true' }
+                expression {
+                    return env.GIT_BRANCH.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
+                }
             }
             steps {
-                script {
-                    try {
-                        sshagent(['Jenkins-GitHub-SSH']) {
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
+                    script {
+                        try {
+                            echo "Merging ${env.GIT_BRANCH} to main"
                             sh '''
-                                # Merge successful feature branch into main
                                 git config user.name "jenkins"
                                 git config user.email "jenkins@example.com"
                                 git checkout main
                                 git pull origin main
-                                git merge --no-ff ${FEATURE_BRANCH}
+                                git merge --no-ff ${GIT_BRANCH}
                                 git push origin main
                             '''
+                            env.MERGE_SUCCESS = 'true'
+                        } catch (Exception e) {
+                            env.MERGE_SUCCESS = 'false'
+                            error("Merge failed: ${e.message}")
                         }
-                        env.MERGE_SUCCESS = 'true'
-                    } catch (Exception e) {
-                        env.MERGE_SUCCESS = 'false'
-                        error("Merge failed: ${e.message}")
                     }
                 }
             }
