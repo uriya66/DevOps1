@@ -45,22 +45,26 @@ pipeline {
             }
         }
 
-        stage('Checkout') {
+        stage('Detect Real Branch') {
             steps {
                 script {
-                    // Detect the real trigger branch (main or feature-test)
-                    def triggerBranch = sh(script: "git branch --show-current || git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                    echo "Checking out from branch: ${triggerBranch}"
-                    
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: "*/${triggerBranch}"]],
-                        userRemoteConfigs: [[
-                            url: REPO_URL,
-                            credentialsId: 'Jenkins-GitHub-SSH'
-                        ]]
-                    ])
+                    def realBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    echo "Detected real branch: ${realBranch}"
+                    env.REAL_BRANCH = realBranch  // Save detected branch to environment
                 }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${env.REAL_BRANCH}"]],  // Checkout from detected branch
+                    userRemoteConfigs: [[
+                        url: REPO_URL,
+                        credentialsId: 'Jenkins-GitHub-SSH'
+                    ]]
+                ])
             }
         }
 
@@ -79,7 +83,7 @@ pipeline {
                             git push origin ${BRANCH_NAME}
                         """
                     }
-                    env.GIT_BRANCH = BRANCH_NAME
+                    env.GIT_BRANCH = BRANCH_NAME  // Save feature branch name for later use
                 }
             }
         }
@@ -127,7 +131,7 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        DEPLOY_SUCCESS = 'true'
+                        DEPLOY_SUCCESS = 'true'  // Mark deployment as successful
                     } catch (Exception e) {
                         DEPLOY_SUCCESS = 'false'
                         error("Deployment failed: ${e.message}")
@@ -156,7 +160,7 @@ pipeline {
                                 git push origin main
                             """
                         }
-                        MERGE_SUCCESS = 'true'
+                        MERGE_SUCCESS = 'true'  // Mark merge as successful
                     } catch (Exception e) {
                         MERGE_SUCCESS = 'false'
                         error("Merge to main failed: ${e.message}")
