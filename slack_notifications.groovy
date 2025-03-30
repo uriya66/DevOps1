@@ -7,8 +7,8 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Retrieve commit message from latest commit
         def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
 
-        // Use saved environment variable to show real branch (feature-XXX)
-        def branch = env.GIT_BRANCH ?: sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+        // Retrieve the custom branch name from env (not Git HEAD)
+        def branch = env.GIT_BRANCH ?: "unknown-branch"  // Use fallback if not set
 
         // Generate GitHub commit URL for direct reference
         def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"
@@ -28,8 +28,8 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Build result summary (merge/deploy)
         def resultNote = ""
         if (mergeSuccess != null && deploySuccess != null) {
-            resultNote += mergeSuccess ? "*Merge:* ✅ Successful\n" : "*Merge:* ❌ Failed\nReason: Merge failed or remote missing\n"
-            resultNote += deploySuccess ? "*Deploy:* ✅ Successful\n" : "*Deploy:* ❌ Failed\nReason: Deployment script threw exception or status not saved\n"
+            resultNote += mergeSuccess ? "*Merge:* ✅ Successful\n" : "*Merge:* ❌ Failed - Merge did not complete successfully\n"
+            resultNote += deploySuccess ? "*Deploy:* ✅ Successful\n" : "*Deploy:* ❌ Failed - Deployment script encountered an issue\n"
         }
 
         // Build full Slack message with clean format (no localhost)
