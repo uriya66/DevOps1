@@ -1,67 +1,95 @@
-import requests  # Used to send HTTP requests to the Flask API
-import pytest  # Used for structuring and running test cases
-import os  # Used for interacting with the system (e.g., checking Gunicorn)
+import requests  # Import the requests library to send HTTP requests
+import pytest  # Import pytest for writing test cases
+import os  # Import os for system checks
 
-# Define the base URL for the application (localhost only to avoid external IP dependency)
+# Define the base URL for the Flask application
 BASE_URL = "http://localhost:5000"
 
-# Define request headers for JSON responses
+# Define headers to ensure the response is returned in JSON format
 HEADERS = {"Accept": "application/json"}
 
-# ------------------- Tests -------------------
-
 def test_health_check():
-    # Test /health endpoint and validate expected JSON structure and content
+    """
+    Test the /health endpoint to ensure the API is running correctly.
+    This test verifies:
+    - The API is up and responding with HTTP 200.
+    - The response JSON contains expected keys.
+    - The status of the service is "ok".
+    """
     response = requests.get(f"{BASE_URL}/health", headers=HEADERS)
     json_data = response.json()
-    assert response.status_code == 200  # Ensure HTTP response is 200
-    assert "status" in json_data  # Ensure 'status' key exists
-    assert json_data["status"] == "ok"  # Ensure status value is "ok"
-    assert "message" in json_data  # Ensure 'message' key exists
-    assert isinstance(json_data["message"], str)  # Ensure message is a string
+    assert response.status_code == 200
+    assert "status" in json_data
+    assert json_data["status"] == "ok"
+    assert "message" in json_data
+    assert isinstance(json_data["message"], str)
 
 def test_home_api():
-    # Test root (/) endpoint and validate structure for JSON response
+    """
+    Test the root (/) endpoint to verify it returns a valid JSON response.
+    """
     response = requests.get(BASE_URL, headers=HEADERS)
     json_data = response.json()
-    assert response.status_code == 200  # Ensure HTTP response is 200
-    assert "page" in json_data  # Ensure 'page' key exists
-    assert json_data["page"] == "home"  # Ensure page value is "home"
-    assert "message" in json_data  # Ensure 'message' key exists
-    assert isinstance(json_data["message"], str)  # Ensure message is a string
+    assert response.status_code == 200
+    assert "page" in json_data
+    assert json_data["page"] == "home"
+    assert "message" in json_data
+    assert isinstance(json_data["message"], str)
 
 def test_404_page():
-    # Test for invalid route and validate custom 404 JSON response
-    response = requests.get(f"{BASE_URL}/nonexistent", headers=HEADERS)
+    """
+    Test a non-existing page to verify that the custom 404 JSON response is returned.
+    """
+    response = requests.get(f"{BASE_URL}/nonexistentpage", headers=HEADERS)
     json_data = response.json()
-    assert response.status_code == 404  # Ensure HTTP response is 404
-    assert "error" in json_data  # Ensure 'error' key exists
-    assert json_data["error"] == "404 - Page Not Found"  # Ensure correct error message
+    assert response.status_code == 404
+    assert "error" in json_data
+    assert json_data["error"] == "404 - Page Not Found"
 
 def test_api_test_content():
-    # Test /api/test-content and verify structure of the response
+    """
+    Test the /api/test-content endpoint to ensure API data remains consistent.
+    This test verifies:
+    - The API responds with HTTP 200.
+    - The response includes a 'message' key with a string value.
+    """
     response = requests.get(f"{BASE_URL}/api/test-content", headers=HEADERS)
     json_data = response.json()
-    assert response.status_code == 200  # Ensure HTTP response is 200
-    assert "message" in json_data  # Ensure 'message' key exists
-    assert isinstance(json_data["message"], str)  # Ensure message is a string
+    assert response.status_code == 200
+    assert "message" in json_data
+    assert isinstance(json_data["message"], str)
 
 def test_gunicorn_running():
-    # Verify that Gunicorn process is running using pgrep
+    """
+    Ensure that Gunicorn is actually running by checking process existence.
+    This test verifies:
+    - The Gunicorn process is running on the system.
+    - If Gunicorn is not running, the test fails.
+    """
     result = os.system("pgrep gunicorn > /dev/null")
-    assert result == 0, "Gunicorn is not running!"  # Fail if Gunicorn is not active
+    assert result == 0, "Gunicorn is not running!"
 
 def test_api_health_check():
-    # Test /api/health endpoint to validate status and response structure
+    """
+    Test the /api/health endpoint to validate it returns a correct response.
+    This test verifies:
+    - The API responds with HTTP 200.
+    - The response JSON contains expected keys.
+    - The status of the service is "ok".
+    """
     response = requests.get(f"{BASE_URL}/api/health", headers=HEADERS)
     json_data = response.json()
-    assert response.status_code == 200  # Ensure HTTP response is 200
-    assert "status" in json_data  # Ensure 'status' key exists
-    assert json_data["status"] == "ok"  # Ensure status is "ok"
-    assert "message" in json_data  # Ensure 'message' key exists
-    assert isinstance(json_data["message"], str)  # Ensure message is a string
+    assert response.status_code == 200
+    assert "status" in json_data
+    assert json_data["status"] == "ok"
+    assert "message" in json_data
+    assert isinstance(json_data["message"], str)
 
 def test_invalid_method():
-    # Send a POST to a GET-only endpoint to ensure proper error response
+    """
+    Test an invalid method request (POST instead of GET) to ensure proper handling.
+    This test verifies:
+    - A POST request to a GET-only endpoint should return 400 or 405.
+    """
     response = requests.post(f"{BASE_URL}/health", headers=HEADERS)
-    assert response.status_code in [400, 405]  # Validate appropriate method error code
+    assert response.status_code in [400, 405], "Expected 400 or 405 for invalid method request"

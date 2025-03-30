@@ -1,45 +1,58 @@
 #!/bin/bash
 set -e  # Exit immediately if any command fails
 
-# Define the name of the Gunicorn systemd service
+# Define service name
 SERVICE_NAME="gunicorn"
 
-# Notify start of deployment
+# Print deployment start message
 echo "Deploying application with Gunicorn..."
 
-# Check if virtual environment exists
+# Ensure the virtual environment exists
 if [ -d "venv" ]; then
     echo "Activating virtual environment..."
-    . venv/bin/activate  # Activate venv if exists
+    . venv/bin/activate
 else
     echo "Virtual environment not found! Creating one..."
-    python3 -m venv venv  # Create venv
+    python3 -m venv venv
     . venv/bin/activate
 fi
 
-# Stop Gunicorn if already running
+# Stop existing Gunicorn service if running
 if systemctl is-active --quiet $SERVICE_NAME; then
     echo "Stopping existing Gunicorn service..."
     sudo -n systemctl stop $SERVICE_NAME
 fi
 
-# Install missing Python dependencies
-for package in flask gunicorn requests pytest; do
-    if ! pip show $package > /dev/null; then
-        echo "Installing $package..."
-        pip install $package
-    fi
-done
+# Install required dependencies only if they are missing
+if ! pip show flask > /dev/null; then
+    echo "Installing Flask..."
+    pip install flask
+fi
+
+if ! pip show gunicorn > /dev/null; then
+    echo "Installing Gunicorn..."
+    pip install gunicorn
+fi
+
+if ! pip show requests > /dev/null; then
+    echo "Installing Requests..."
+    pip install requests
+fi
+
+if ! pip show pytest > /dev/null; then
+    echo "Installing Pytest..."
+    pip install pytest
+fi
 
 # Restart Gunicorn service
 echo "Restarting Gunicorn service..."
 sudo -n systemctl restart $SERVICE_NAME
 
-# Confirm service is running
+# Verify Gunicorn status
 if ! systemctl is-active --quiet $SERVICE_NAME; then
-    echo "ERROR: Gunicorn failed to start!"
+    echo "ERROR: Gunicorn service failed to start!"
     exit 1
 fi
 
-# Output deployment success
-echo "Deployment completed successfully. App is running on localhost and public IP."
+# Print successful deployment message
+echo "Deployment completed successfully. Application is running at http://localhost:5000"
