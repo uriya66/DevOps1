@@ -49,7 +49,7 @@ pipeline {
 
         stage('Create Feature Branch') {
             steps {
-                sshagent(credentials: ['git']) {
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
                         git checkout -b feature-${BUILD_NUMBER} // Create new feature branch
                         git push origin feature-${BUILD_NUMBER} // Push to GitHub
