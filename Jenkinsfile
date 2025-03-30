@@ -45,20 +45,21 @@ pipeline {
 
         stage('Checkout & Create Feature Branch') {
             steps {
-                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    sh '''
-                        # Checkout to feature-test branch
-                        git checkout feature-test
 
-                        # Create new feature branch from feature-test
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
+                    sh """
+                        # Ensure the remote origin URL is SSH (not HTTPS)
+                        git remote set-url origin git@github.com:uriya66/DevOps1.git
+
+                        # Checkout to feature-test and create a new branch
+                        git checkout feature-test
                         git checkout -b ${BRANCH_NAME}
 
-                        # Push new feature branch to origin
+                        # Push the new feature branch to origin using SSH authentication
                         git push origin ${BRANCH_NAME}
-                    '''
-                    script {
-                        env.GIT_BRANCH = BRANCH_NAME
-                    }
+                    """
+                    // Update environment variable
+                    env.GIT_BRANCH = BRANCH_NAME
                 }
             }
         }
