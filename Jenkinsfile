@@ -29,7 +29,7 @@ pipeline {
 
         stage('Start SSH Agent') {
             steps {
-                sshagent(credentials: ['git']) {
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true' // Verify SSH access to GitHub
                 }
             }
