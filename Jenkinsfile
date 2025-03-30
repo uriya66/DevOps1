@@ -7,10 +7,9 @@ pipeline {
 
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Git repository URL over SSH
-        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"      // Dynamic feature branch per build
-        DEPLOY_SUCCESS = 'false'                         // Deployment status as string for Jenkins env
-        MERGE_SUCCESS = 'false'                          // Merge status as string for Jenkins env
-        GIT_BRANCH = ''                                  // Ensure global env variable for branch
+        BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Dynamic feature branch per build
+        DEPLOY_SUCCESS = 'false'  // Deployment status
+        MERGE_SUCCESS = 'false'  // Merge status
     }
 
     stages {
@@ -21,7 +20,7 @@ pipeline {
                     def lastCommitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
                     echo "[DEBUG] Last commit message: ${lastCommitMessage}"
                     if (lastCommitMessage.startsWith("Merge remote-tracking branch")) {
-                        echo "[INFO] Skipping build: Merge commit detected"
+                        echo "Skipping build: This is a merge commit."
                         currentBuild.result = 'SUCCESS'
                         error("Stopping Pipeline: Merge commit detected.")
                     }
@@ -59,6 +58,10 @@ pipeline {
                         credentialsId: 'Jenkins-GitHub-SSH'
                     ]]
                 ])
+                script {
+                    env.GIT_BRANCH = 'main'
+                    echo "[DEBUG] GIT_BRANCH set to ${env.GIT_BRANCH}"
+                }
             }
         }
 
@@ -78,7 +81,7 @@ pipeline {
                             git push origin ${BRANCH_NAME}
                         """
                     }
-                    env.GIT_BRANCH = BRANCH_NAME  // Define GIT_BRANCH globally
+                    env.GIT_BRANCH = BRANCH_NAME
                     echo "[DEBUG] env.GIT_BRANCH set to ${env.GIT_BRANCH}"
                 }
             }
@@ -106,7 +109,7 @@ pipeline {
                     gunicorn -w 1 -b 127.0.0.1:5000 app:app &
                     sleep 3
                     venv/bin/python -m pytest test_app.py
-                    pkill gunicorn || true
+                    pkill gunicorn
                 '''
             }
         }
@@ -114,12 +117,12 @@ pipeline {
         stage('Deploy') {
             when {
                 expression {
-                    echo "[DEBUG] Checking if Build and Test stages succeeded"
                     return currentBuild.result == null || currentBuild.result == 'SUCCESS'
                 }
             }
             steps {
                 script {
+                    echo "[DEBUG] Checking if Build and Test stages succeeded"
                     try {
                         echo "[INFO] Running deployment script"
                         sh '''
@@ -127,12 +130,11 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        env.DEPLOY_SUCCESS = 'true'  // Important: Set globally
+                        env.DEPLOY_SUCCESS = 'true'
                         echo "[INFO] Deployment successful"
                     } catch (Exception e) {
                         env.DEPLOY_SUCCESS = 'false'
-                        echo "[ERROR] Deployment failed: ${e.message}"
-                        error("Deployment failed: ${e.message}")
+                        error("[ERROR] Deployment failed: ${e.message}")
                     }
                 }
             }
@@ -150,25 +152,19 @@ pipeline {
             }
             steps {
                 script {
-                    try {
-                        echo "[INFO] Merging branch ${env.GIT_BRANCH} into main"
-                        withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
-                            sh """
-                                git config user.name "jenkins"
-                                git config user.email "jenkins@example.com"
-                                git checkout main
-                                git pull origin main
-                                git merge --no-ff ${env.GIT_BRANCH}
-                                git push origin main
-                            """
-                        }
-                        env.MERGE_SUCCESS = 'true'
-                        echo "[INFO] Merge successful"
-                    } catch (Exception e) {
-                        env.MERGE_SUCCESS = 'false'
-                        echo "[ERROR] Merge failed: ${e.message}"
-                        error("Merge failed: ${e.message}")
+                    echo "[INFO] Merging ${env.GIT_BRANCH} into main"
+                    withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
+                        sh """
+                            git config user.name "jenkins"
+                            git config user.email "jenkins@example.com"
+                            git checkout main
+                            git pull origin main
+                            git merge --no-ff ${env.GIT_BRANCH}
+                            git push origin main
+                        """
                     }
+                    env.MERGE_SUCCESS = 'true'
+                    echo "[INFO] Merge to main successful"
                 }
             }
         }
@@ -177,8 +173,8 @@ pipeline {
     post {
         always {
             script {
-                echo "[DEBUG] Preparing Slack notification"
                 try {
+                    echo "[DEBUG] Preparing Slack notification"
                     def slack = load 'slack_notifications.groovy'
                     def message = slack.constructSlackMessage(
                         env.BUILD_NUMBER,
@@ -190,10 +186,13 @@ pipeline {
                     slack.sendSlackNotification(message, color)
                     echo "[INFO] Slack notification sent"
                 } catch (Exception e) {
-                    echo "[ERROR] Slack notification failed: ${e.message}"
+                    echo "[ERROR] Slack notification error: ${e.message}"
                 }
             }
         }
+    }  // Close post block
+}  // Close pipeline block
+
     }  // Close post block
 }  // Close pipeline block
 
