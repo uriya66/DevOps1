@@ -19,7 +19,7 @@ for package in flask gunicorn requests pytest; do
     pip show $package || pip install $package
 done
 
-# Reload systemd units if needed
+# Reload systemd units (ensure no password prompt)
 sudo -n systemctl daemon-reload
 
 # Stop Gunicorn if running

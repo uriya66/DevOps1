@@ -2,7 +2,7 @@ pipeline {
     agent any  // Use any available Jenkins agent
 
     options {
-        disableConcurrentBuilds() // Prevent multiple builds at the same time
+        disableConcurrentBuilds() // Prevent concurrent builds
     }
 
     environment {
@@ -10,6 +10,7 @@ pipeline {
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}"
         DEPLOY_SUCCESS = 'false'
         MERGE_SUCCESS = 'false'
+        GIT_BRANCH = ''
     }
 
     stages {
@@ -30,7 +31,7 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh '''
-                        # Check GitHub SSH authentication without failing on the expected response
+                        # Verify GitHub SSH authentication
                         ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"
                         if [ $? -eq 0 ]; then
                             echo "SSH authentication successful"
@@ -47,15 +48,12 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
-                        // Ensure remote URL is set to SSH
                         sh """
-                            git remote set-url origin git@github.com:uriya66/DevOps1.git
+                            git remote set-url origin ${REPO_URL}
                             git checkout feature-test
                             git checkout -b ${BRANCH_NAME}
                             git push origin ${BRANCH_NAME}
                         """
-
-                        // Dynamically set GIT_BRANCH environment variable
                         env.GIT_BRANCH = BRANCH_NAME
                     }
                 }
@@ -78,6 +76,7 @@ pipeline {
                 sh '''
                     set -e
                     . venv/bin/activate
+                    pkill -f gunicorn || true  # Ensure Gunicorn is stopped before running tests
                     gunicorn -w 1 -b 127.0.0.1:5000 app:app &
                     GUNICORN_PID=$!
                     sleep 3
@@ -141,7 +140,8 @@ pipeline {
                     env.BUILD_NUMBER,
                     env.BUILD_URL,
                     env.MERGE_SUCCESS,
-                    env.DEPLOY_SUCCESS
+                    env.DEPLOY_SUCCESS,
+                    env.GIT_BRANCH
                 )
                 def color = (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
                 slack.sendSlackNotification(message, color)

@@ -1,9 +1,7 @@
-// Construct Slack message with detailed status
-def constructSlackMessage(buildNumber, buildUrl, mergeSuccess, deploySuccess) {
+def constructSlackMessage(buildNumber, buildUrl, mergeSuccess, deploySuccess, branchName) {
     try {
         def commitId = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
         def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-        def branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
         def commitUrl = "https://github.com/uriya66/DevOps1/commit/${commitId}"
         def duration = "${currentBuild.durationString.replace(' and counting', '')}"
         def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()
@@ -14,9 +12,9 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess, deploySuccess) {
         resultNote += deploySuccess == 'true' ? "*Deploy:* ✅ Successful\n" : "*Deploy:* ❌ Failed\n"
 
         return """
-*✅ Jenkins Build Completed!*
+✅ *Jenkins Build Completed!*
 *Pipeline:* #${buildNumber}
-*Branch:* ${branch}
+*Branch:* ${branchName}
 *Commit:* [${commitId}](${commitUrl})
 *Message:* ${commitMessage}
 *Duration:* ${duration}
@@ -28,11 +26,10 @@ ${resultNote}
 
     } catch (Exception e) {
         echo "Slack message error: ${e.message}"
-        return "*❌ Slack message construction error*\nReason: ${e.message}"
+        return "❌ Slack message construction error\nReason: ${e.message}"
     }
 }
 
-// Send Slack notification
 def sendSlackNotification(String message, String color) {
     try {
         slackSend(
