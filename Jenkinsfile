@@ -2,57 +2,58 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = false  // Default value
-        GIT_BRANCH = ''         // Will be set dynamically
+        DEPLOY_SUCCESS = 'false' // Custom flag to control merge stage
     }
 
     stages {
 
-        stage('Declarative: Checkout SCM') {
+        stage('Checkout SCM') {
             steps {
-                checkout scm
+                checkout scm // Checkout source code from the SCM
+            }
+        }
+
+        stage('Skip Redundant Merge Builds') {
+            steps {
+                script {
+                    def lastCommit = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    echo "[DEBUG] Last commit message: ${lastCommit}"
+                    if (lastCommit.contains('Merge branch')) {
+                        echo "[INFO] Skipping build due to merge commit."
+                        currentBuild.result = 'SUCCESS'
+                        return
+                    }
+                }
             }
         }
 
         stage('Start SSH Agent') {
             steps {
-                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'
+                sshagent(credentials: ['git']) {
+                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true' // Verify SSH access to GitHub
                 }
             }
         }
 
         stage('Checkout Main') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
+                checkout([$class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
                         url: 'git@github.com:uriya66/DevOps1.git',
                         credentialsId: 'Jenkins-GitHub-SSH'
                     ]]
-                ])
+                ]) // Checkout main branch explicitly via SSH
             }
         }
 
         stage('Create Feature Branch') {
-            when {
-                expression {
-                    def rawBranch = sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
-                    env.GIT_BRANCH = rawBranch
-                    echo "[DEBUG] Detected branch: ${env.GIT_BRANCH}"
-                    return env.GIT_BRANCH ==~ /origin\/(main|feature-test)/
-                }
-            }
             steps {
-                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    script {
-                        def newBranch = "feature-${BUILD_NUMBER}"
-                        sh "git checkout -b ${newBranch}"
-                        sh "git push origin ${newBranch}"
-                        env.GIT_BRANCH = newBranch
-                        echo "[DEBUG] Created and pushed new branch: ${newBranch}"
-                    }
+                sshagent(credentials: ['git']) {
+                    sh """
+                        git checkout -b feature-${BUILD_NUMBER} // Create new feature branch
+                        git push origin feature-${BUILD_NUMBER} // Push to GitHub
+                    """
                 }
             }
         }
@@ -71,10 +72,10 @@ pipeline {
 
         stage('Test') {
             steps {
+                echo "[DEBUG] Running tests with Gunicorn"
                 sh '''
                     set -e
                     . venv/bin/activate
-                    sleep 5
                     gunicorn -w 1 -b 127.0.0.1:5000 app:app &
                     sleep 5
                     pytest test_app.py
@@ -87,17 +88,19 @@ pipeline {
             steps {
                 script {
                     try {
+                        echo "[DEBUG] Running deployment script"
                         sh '''
                             set -e
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
                         echo "[INFO] Deployment succeeded"
-                        DEPLOY_SUCCESS = true
-                    } catch (err) {
-                        echo "[ERROR] Deployment failed: ${err}"
-                        DEPLOY_SUCCESS = false
-                        error("Deployment failed.")
+                        DEPLOY_SUCCESS = 'true' // Update flag for next stage
+                    } catch (e) {
+                        echo "[ERROR] Deployment failed"
+                        DEPLOY_SUCCESS = 'false'
+                        currentBuild.result = 'FAILURE'
+                        error("Stopping pipeline due to deployment failure.")
                     }
                 }
             }
@@ -106,19 +109,22 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    def isFeature = env.GIT_BRANCH ==~ /^feature-[0-9]+$/
-                    echo "[DEBUG] GIT_BRANCH=${env.GIT_BRANCH}, DEPLOY_SUCCESS=${DEPLOY_SUCCESS}, isFeature=${isFeature}"
-                    return isFeature && DEPLOY_SUCCESS.toString() == "true"
+                    def shouldMerge = (env.DEPLOY_SUCCESS == 'true')
+                    echo "[DEBUG] DEPLOY_SUCCESS=${env.DEPLOY_SUCCESS}, shouldMerge=${shouldMerge}"
+                    return shouldMerge
                 }
             }
             steps {
-                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    sh '''
+                echo "[INFO] Starting merge to main branch"
+                sshagent(credentials: ['git']) {
+                    sh """
+                        git config user.name 'jenkins'
+                        git config user.email 'jenkins@example.com'
                         git checkout main
                         git pull origin main
-                        git merge origin/${GIT_BRANCH}
+                        git merge feature-${BUILD_NUMBER}
                         git push origin main
-                    '''
+                    """
                 }
             }
         }
@@ -127,16 +133,26 @@ pipeline {
     post {
         always {
             script {
-                def branch = sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
-                def commit = sh(returnStdout: true, script: "git log -1 --pretty=%B").trim()
-                def publicIP = sh(returnStdout: true, script: "curl -s http://checkip.amazonaws.com").trim()
-                def color = DEPLOY_SUCCESS.toString() == "true" ? "good" : "danger"
+                def commit = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                def message = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                def branch = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                def ip = sh(script: 'curl -s http://checkip.amazonaws.com', returnStdout: true).trim()
+                def color = currentBuild.currentResult == 'SUCCESS' ? 'good' : 'danger'
+
+                def payload = [
+                    branch: "feature-${BUILD_NUMBER}",
+                    commit: commit.take(7),
+                    message: message,
+                    result: currentBuild.currentResult,
+                    app_url: "http://${ip}:5000"
+                ]
 
                 slackSend (
                     channel: '#jenkis_alerts',
                     color: color,
-                    message: "*Branch:* ${branch}\n*Commit:* ${commit}\n*Deployed:* ${DEPLOY_SUCCESS}\n*App:* http://${publicIP}:5000",
-                    tokenCredentialId: 'Jenkins-Slack-Token'
+                    tokenCredentialId: 'Jenkins-Slack-Token',
+                    teamDomain: 'devops-c4a8276',
+                    message: "[${payload.result}] Branch: ${payload.branch}, Commit: ${payload.commit}, Message: ${payload.message}, App: ${payload.app_url}"
                 )
             }
         }
