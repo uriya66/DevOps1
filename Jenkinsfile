@@ -53,8 +53,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER}  // Create a new feature branch
-                        git push origin feature-${BUILD_NUMBER}  // Push feature branch to GitHub
+                        git checkout -b feature-${BUILD_NUMBER}  # Create a new feature branch
+                        git push origin feature-${BUILD_NUMBER}  # Push feature branch to GitHub
                     """
                 }
             }
@@ -120,12 +120,12 @@ pipeline {
                 echo "[INFO] Starting merge to main branch"  // Log merge start
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git config user.name 'jenkins'  // Set Git username
-                        git config user.email 'jenkins@example.com'  // Set Git email
-                        git checkout main  // Switch to main branch
+                        git config user.name 'jenkins'  # Set Git username
+                        git config user.email 'jenkins@example.com'  # Set Git email
+                        git checkout main  # Switch to main branch
                         git pull origin main  # Sync main branch
-                        git merge feature-${BUILD_NUMBER}  // Merge feature branch
-                        git push origin main  // Push changes to main
+                        git merge feature-${BUILD_NUMBER}  # Merge feature branch
+                        git push origin main  # Push changes to main
                     """
                 }
                 script {
