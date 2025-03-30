@@ -10,7 +10,7 @@ pipeline {
     stages {
         stage('Start SSH Agent') {
             steps {
-                sshagent(['git']) {
+                sshagent(['Jenkins-GitHub-SSH']) {
                     script {
                         echo "Starting SSH Agent and verifying authentication"
                         sh 'ssh-add -l'
