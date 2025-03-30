@@ -7,7 +7,7 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Retrieve commit message from latest commit
         def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
 
-        // Retrieve the custom branch name from env (not Git HEAD)
+        // Retrieve the custom branch name from env
         def branch = env.GIT_BRANCH ?: "unknown-branch"  // Use fallback if not set
 
         // Generate GitHub commit URL for direct reference
@@ -32,7 +32,7 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
             resultNote += deploySuccess ? "*Deploy:* ✅ Successful\n" : "*Deploy:* ❌ Failed - Deployment script encountered an issue\n"
         }
 
-        // Build full Slack message with clean format (no localhost)
+        // Build full Slack message
         return """
 *✅ Jenkins Build Completed!*
 *Pipeline:* #${buildNumber}
@@ -66,6 +66,5 @@ def sendSlackNotification(String message, String color) {
     }
 }
 
-// Return this script object so it can be loaded from Jenkinsfile
-return this
+return this  // Return this script so it can be used in Jenkinsfile
 
