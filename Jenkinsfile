@@ -2,14 +2,11 @@ pipeline {
     agent any  // Run the pipeline on any available Jenkins agent
 
     options {
-        disableConcurrentBuilds()  // Prevent multiple builds from running simultaneously
+        disableConcurrentBuilds()  // Prevent concurrent builds
     }
 
     environment {
-        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // GitHub SSH repository URL
-        BASE_BRANCH = ''  // Will hold the original triggering branch (main or feature-test)
-        BRANCH_NAME = ''  // Will hold the generated feature-${BUILD_NUMBER} branch name
-        GIT_BRANCH = ''  // Will be used for merge condition and Slack
+        REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // SSH GitHub repo
     }
 
     stages {
@@ -18,11 +15,11 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     script {
-                        echo "Starting SSH Agent and verifying authentication"  // Log SSH agent init
-                        sh 'ssh-add -l'  // List current keys
+                        echo "Starting SSH Agent and verifying authentication"
+                        sh 'ssh-add -l'
                         sh '''
-                            echo "Testing SSH connection to GitHub..."  // Log connection test
-                            ssh -o StrictHostKeyChecking=no -T git@github.com || true  // Validate SSH
+                            echo "Testing SSH connection to GitHub..."
+                            ssh -o StrictHostKeyChecking=no -T git@github.com || true
                         '''
                     }
                 }
@@ -32,25 +29,25 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    echo "Detecting triggering branch using Git log"  // Log detection start
+                    echo "Detecting triggering branch using Git log"
 
-                    def detectedBranch = sh(
+                    def branch = sh(
                         script: "git log -1 --pretty=format:%D | grep -oE 'origin/(main|feature-test)' | cut -d/ -f2",
                         returnStdout: true
-                    ).trim()  // Extract branch name
+                    ).trim()
 
-                    if (!detectedBranch) {
-                        error("Could not detect triggering branch")  // Fail if not found
+                    if (!branch) {
+                        error("❌ Could not detect triggering branch.")
                     }
 
-                    BASE_BRANCH = detectedBranch  // Set pipeline var
-                    echo "Trigger branch is: ${BASE_BRANCH}"  // Log detected
+                    env.BASE_BRANCH = branch
+                    echo "Trigger branch is: ${env.BASE_BRANCH}"
 
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: "*/${BASE_BRANCH}"]],
+                        branches: [[name: "*/${env.BASE_BRANCH}"]],
                         userRemoteConfigs: [[
-                            url: REPO_URL,
+                            url: env.REPO_URL,
                             credentialsId: 'Jenkins-GitHub-SSH'
                         ]]
                     ])
@@ -61,16 +58,13 @@ pipeline {
         stage('Create Feature Branch') {
             steps {
                 script {
-                    def buildBranch = "feature-${env.BUILD_NUMBER}"  // Use temporary local var
-                    BRANCH_NAME = buildBranch  // Set pipeline var
-                    env.GIT_BRANCH = buildBranch.toString()  // Set env var as String
-
-                    echo "Creating a new branch from ${BASE_BRANCH} → ${BRANCH_NAME}"  // Log creation
+                    env.GIT_BRANCH = "feature-${env.BUILD_NUMBER}"  // Set final GIT_BRANCH for global use
+                    echo "Creating a new branch from ${env.BASE_BRANCH} → ${env.GIT_BRANCH}"
 
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
-                            git checkout -b ${BRANCH_NAME}  # Create local branch
-                            git push origin ${BRANCH_NAME}  # Push to GitHub
+                            git checkout -b ${env.GIT_BRANCH}
+                            git push origin ${env.GIT_BRANCH}
                         """
                     }
                 }
@@ -80,10 +74,10 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                    set -e  # Stop on error
-                    echo "Setting up Python virtual environment"  # Log setup
-                    if [ ! -d "venv" ]; then python3 -m venv venv; fi  # Create venv if missing
-                    . venv/bin/activate  # Activate
+                    set -e
+                    echo "Setting up Python virtual environment"
+                    if [ ! -d "venv" ]; then python3 -m venv venv; fi
+                    . venv/bin/activate
                     venv/bin/pip install --upgrade pip
                     venv/bin/pip install flask requests pytest gunicorn
                 '''
@@ -118,12 +112,12 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith('feature-')  // Only feature branches
+                    return env.GIT_BRANCH?.startsWith('feature-')
                 }
             }
             steps {
                 script {
-                    echo "Merging ${env.GIT_BRANCH} into main"  // Log merge
+                    echo "Merging ${env.GIT_BRANCH} into main"
 
                     withEnv(["SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"]) {
                         sh """
@@ -143,18 +137,17 @@ pipeline {
     post {
         success {
             script {
-                def slack = load 'slack_notifications.groovy'  // Load Slack helper
-                def didMerge = env.GIT_BRANCH?.startsWith('feature-')  // Check merge condition
-                def didDeploy = true  // You can improve this by parsing deploy log later
-                def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, didMerge, didDeploy)
-                slack.sendSlackNotification(message, "good")  // Send Slack success
+                def slack = load 'slack_notifications.groovy'
+                def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, true, true)
+                slack.sendSlackNotification(message, "good")
             }
         }
+
         failure {
             script {
                 def slack = load 'slack_notifications.groovy'
                 def message = slack.constructSlackMessage(env.BUILD_NUMBER, env.BUILD_URL, false, false)
-                slack.sendSlackNotification(message, "danger")  // Send Slack failure
+                slack.sendSlackNotification(message, "danger")
             }
         }
     }
