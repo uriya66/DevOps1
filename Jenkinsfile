@@ -193,6 +193,3 @@ pipeline {
     }  // Close post block
 }  // Close pipeline block
 
-    }  // Close post block
-}  // Close pipeline block
-
