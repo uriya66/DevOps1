@@ -52,8 +52,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER}  // Create new feature branch
-                        git push origin feature-${BUILD_NUMBER}  // Push branch to remote
+                        git checkout -b feature-${BUILD_NUMBER}  # Create new feature branch
+                        git push origin feature-${BUILD_NUMBER}  # Push branch to remote
                     """
                 }
             }
