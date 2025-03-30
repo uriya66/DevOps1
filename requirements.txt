@@ -1,0 +1,6 @@
+
+flask==2.2.2              # Flask web framework
+gunicorn==21.2.0          # Production-ready WSGI server for Flask
+requests==2.31.0          # HTTP client library
+pytest==7.4.4             # Python testing framework
+

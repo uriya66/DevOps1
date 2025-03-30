@@ -65,4 +65,3 @@ def test_invalid_method():
     # Send a POST to a GET-only endpoint to ensure proper error response
     response = requests.post(f"{BASE_URL}/health", headers=HEADERS)
     assert response.status_code in [400, 405]  # Validate appropriate method error code
-

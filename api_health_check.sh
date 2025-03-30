@@ -21,4 +21,3 @@ fi
 
 echo "Flask API is up and running (HTTP Status: 200)"
 rm response.txt  # Clean up temporary file
-

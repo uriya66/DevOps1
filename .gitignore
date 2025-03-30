@@ -1,4 +1,27 @@
-venv/
+# Ignore Python compiled files
 __pycache__/
-*.log
+*.pyc
+*.pyo
+
+# Ignore virtual environment
 venv/
+
+# Ignore logs
+logs/
+*.log
+
+# Ignore system files
+.DS_Store
+
+# Ignore backup files
+*.bak
+*~
+
+# Ignore coverage/testing outputs
+.coverage
+coverage.xml
+htmlcov/
+
+# Ignore IDE configs
+.vscode/
+.idea/
