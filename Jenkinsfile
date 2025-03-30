@@ -1,25 +1,27 @@
+
 pipeline {
-    agent any
+    agent any  // Use any available Jenkins agent
 
     environment {
-        DEPLOY_SUCCESS = 'false' // Custom flag to control merge stage
+        DEPLOY_SUCCESS = 'false' // Flag to track deployment status
+        MERGE_SUCCESS  = 'false' // Flag to track merge status
     }
 
     stages {
 
         stage('Checkout SCM') {
             steps {
-                checkout scm // Checkout source code from the SCM
+                checkout scm  // Checkout source code from GitHub
             }
         }
 
         stage('Skip Redundant Merge Builds') {
             steps {
                 script {
-                    def lastCommit = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                    echo "[DEBUG] Last commit message: ${lastCommit}"
+                    def lastCommit = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()  // Get last commit message
+                    echo "[DEBUG] Last commit message: ${lastCommit}"  // Print commit message
                     if (lastCommit.contains('Merge branch')) {
-                        echo "[INFO] Skipping build due to merge commit."
+                        echo "[INFO] Skipping build due to merge commit."  // Skip build if it's a merge commit
                         currentBuild.result = 'SUCCESS'
                         return
                     }
@@ -30,7 +32,7 @@ pipeline {
         stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true' // Verify SSH access to GitHub
+                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'  // Validate SSH connectivity to GitHub
                 }
             }
         }
@@ -43,7 +45,7 @@ pipeline {
                         url: 'git@github.com:uriya66/DevOps1.git',
                         credentialsId: 'Jenkins-GitHub-SSH'
                     ]]
-                ]) // Checkout main branch explicitly via SSH
+                ])  // Checkout the main branch from GitHub
             }
         }
 
@@ -51,8 +53,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER} # Create new feature branch
-                        git push origin feature-${BUILD_NUMBER} # Push to GitHub
+                        git checkout -b feature-${BUILD_NUMBER}  // Create a new feature branch
+                        git push origin feature-${BUILD_NUMBER}  // Push feature branch to GitHub
                     """
                 }
             }
@@ -60,26 +62,26 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo "[DEBUG] Installing dependencies"
+                echo "[DEBUG] Installing dependencies"  // Log start of build stage
                 sh '''
                     set -e
-                    [ ! -d venv ] && python3 -m venv venv
-                    . venv/bin/activate
-                    pip install --upgrade pip flask pytest gunicorn requests
+                    [ ! -d venv ] && python3 -m venv venv  # Create virtual environment if missing
+                    . venv/bin/activate  # Activate venv
+                    pip install --upgrade pip flask pytest gunicorn requests  # Install dependencies
                 '''
             }
         }
 
         stage('Test') {
             steps {
-                echo "[DEBUG] Running tests with Gunicorn"
+                echo "[DEBUG] Running tests with Gunicorn"  // Log start of test stage
                 sh '''
                     set -e
-                    . venv/bin/activate
-                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &
-                    sleep 5
-                    pytest test_app.py
-                    pkill -f gunicorn || true
+                    . venv/bin/activate  # Activate virtual environment
+                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &  # Start Flask app with Gunicorn
+                    sleep 5  # Wait for server to boot
+                    pytest test_app.py  # Run tests
+                    pkill -f gunicorn || true  # Stop Gunicorn server
                 '''
             }
         }
@@ -88,19 +90,17 @@ pipeline {
             steps {
                 script {
                     try {
-                        echo "[DEBUG] Running deployment script"
+                        echo "[DEBUG] Running deployment script"  // Log deployment start
                         sh '''
                             set -e
-                            chmod +x deploy.sh
-                            ./deploy.sh
+                            chmod +x deploy.sh  # Make deployment script executable
+                            ./deploy.sh  # Execute deployment script
                         '''
                         echo "[INFO] Deployment succeeded"
-                        DEPLOY_SUCCESS = 'true'
-                        currentBuild.description = "DEPLOY_SUCCESS=true"
+                        env.DEPLOY_SUCCESS = 'true'  // Mark deployment as successful
                     } catch (e) {
                         echo "[ERROR] Deployment failed"
-                        DEPLOY_SUCCESS = 'false'
-                        currentBuild.description = "DEPLOY_SUCCESS=false"
+                        env.DEPLOY_SUCCESS = 'false'  // Mark deployment as failed
                         currentBuild.result = 'FAILURE'
                         error("Stopping pipeline due to deployment failure.")
                     }
@@ -111,22 +111,25 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    def successFlag = currentBuild.description?.contains('DEPLOY_SUCCESS=true')
-                    echo "[DEBUG] DEPLOY_SUCCESS flag from description: ${successFlag}"
-                    return successFlag
+                    def status = (env.DEPLOY_SUCCESS == 'true')  // Check if deployment succeeded
+                    echo "[DEBUG] DEPLOY_SUCCESS flag from description: ${env.DEPLOY_SUCCESS}"  // Debug log
+                    return status
                 }
             }
             steps {
-                echo "[INFO] Starting merge to main branch"
+                echo "[INFO] Starting merge to main branch"  // Log merge start
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git config user.name 'jenkins'
-                        git config user.email 'jenkins@example.com'
-                        git checkout main
-                        git pull origin main
-                        git merge feature-${BUILD_NUMBER}
-                        git push origin main
+                        git config user.name 'jenkins'  // Set Git username
+                        git config user.email 'jenkins@example.com'  // Set Git email
+                        git checkout main  // Switch to main branch
+                        git pull origin main  # Sync main branch
+                        git merge feature-${BUILD_NUMBER}  // Merge feature branch
+                        git push origin main  // Push changes to main
                     """
+                }
+                script {
+                    env.MERGE_SUCCESS = 'true'  // Mark merge as successful
                 }
             }
         }
@@ -135,27 +138,22 @@ pipeline {
     post {
         always {
             script {
-                def commit = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-                def message = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                def branch = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                def ip = sh(script: 'curl -s http://checkip.amazonaws.com', returnStdout: true).trim()
-                def color = currentBuild.currentResult == 'SUCCESS' ? 'good' : 'danger'
+                try {
+                    def slack = load 'slack_notifications.groovy'  // Load Slack notification script
 
-                def payload = [
-                    branch: "feature-${BUILD_NUMBER}",
-                    commit: commit.take(7),
-                    message: message,
-                    result: currentBuild.currentResult,
-                    app_url: "http://${ip}:5000"
-                ]
+                    def message = slack.constructSlackMessage(
+                        env.BUILD_NUMBER,  // Jenkins build number
+                        env.BUILD_URL,  // Jenkins build URL
+                        env.MERGE_SUCCESS == 'true',  // Merge result
+                        env.DEPLOY_SUCCESS == 'true'  // Deploy result
+                    )
 
-                slackSend (
-                    channel: '#jenkis_alerts',
-                    color: color,
-                    tokenCredentialId: 'Jenkins-Slack-Token',
-                    teamDomain: 'devops-c4a8276',
-                    message: "[${payload.result}] Branch: ${payload.branch}, Commit: ${payload.commit}, Message: ${payload.message}, App: ${payload.app_url}"
-                )
+                    def color = (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"  // Set Slack message color
+
+                    slack.sendSlackNotification(message, color)  // Send Slack notification
+                } catch (Exception e) {
+                    echo "Slack notification error: ${e.message}"  // Log Slack error
+                }
             }
         }
     }  // Close post block
