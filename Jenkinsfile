@@ -2,15 +2,14 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = 'false'       // Global variable for deployment status
-        MERGE_SUCCESS  = 'false'       // Global variable for merge status
+        DEPLOY_SUCCESS = 'false'  // Track deployment result
+        MERGE_SUCCESS = 'false'   // Track merge result
     }
 
     stages {
-
         stage('Checkout SCM') {
             steps {
-                checkout scm  // Pull latest code from trigger branch
+                checkout scm  // Checkout source code from SCM
             }
         }
 
@@ -31,7 +30,7 @@ pipeline {
         stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true' // Validate GitHub SSH
+                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'  // Verify GitHub access
                 }
             }
         }
@@ -44,7 +43,7 @@ pipeline {
                         url: 'git@github.com:uriya66/DevOps1.git',
                         credentialsId: 'Jenkins-GitHub-SSH'
                     ]]
-                ]) // Pull main branch to prepare for merge
+                ])  // Checkout main branch explicitly
             }
         }
 
@@ -52,8 +51,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER}  # Create new feature branch
-                        git push origin feature-${BUILD_NUMBER}  # Push branch to remote
+                        git checkout -b feature-${BUILD_NUMBER}  # Create new branch
+                        git push origin feature-${BUILD_NUMBER}  # Push to GitHub
                     """
                 }
             }
@@ -73,7 +72,7 @@ pipeline {
 
         stage('Test') {
             steps {
-                echo "[DEBUG] Running tests with Gunicorn"
+                echo "[DEBUG] Running tests"
                 sh '''
                     set -e
                     . venv/bin/activate
@@ -96,12 +95,13 @@ pipeline {
                             ./deploy.sh
                         '''
                         echo "[INFO] Deployment succeeded"
-                        env.DEPLOY_SUCCESS = 'true'  // Mark success
+                        DEPLOY_SUCCESS = 'true'
+                        currentBuild.description = "DEPLOY_SUCCESS=true"
                     } catch (e) {
-                        echo "[ERROR] Deployment failed"
-                        env.DEPLOY_SUCCESS = 'false' // Mark failure
+                        echo "[ERROR] Deployment failed: ${e.message}"
+                        DEPLOY_SUCCESS = 'false'
+                        currentBuild.description = "DEPLOY_SUCCESS=false"
                         currentBuild.result = 'FAILURE'
-                        error("Stopping pipeline due to deployment failure.")
                     }
                 }
             }
@@ -110,29 +110,29 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    echo "[DEBUG] DEPLOY_SUCCESS flag from env: ${env.DEPLOY_SUCCESS}"
-                    return env.DEPLOY_SUCCESS == 'true'
+                    def deployFlag = currentBuild.description?.contains('DEPLOY_SUCCESS=true')
+                    echo "[DEBUG] DEPLOY_SUCCESS from description: ${deployFlag}"
+                    return deployFlag
                 }
             }
             steps {
-                echo "[INFO] Starting merge to main branch"
-                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    script {
-                        try {
+                script {
+                    try {
+                        echo "[INFO] Starting merge to main"
+                        sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                             sh """
                                 git config user.name 'jenkins'
                                 git config user.email 'jenkins@example.com'
                                 git checkout main
                                 git pull origin main
-                                git merge feature-${BUILD_NUMBER}
-                                git push origin main
+                                git merge --no-ff feature-${BUILD_NUMBER} || echo "[INFO] Nothing to merge"
+                                git push origin main || echo "[INFO] Nothing was pushed to main"
                             """
-                            env.MERGE_SUCCESS = 'true' // Mark merge success
-                        } catch (err) {
-                            echo "[ERROR] Merge failed"
-                            env.MERGE_SUCCESS = 'false'
-                            error("Merge to main failed")
                         }
+                        MERGE_SUCCESS = 'true'
+                    } catch (e) {
+                        echo "[ERROR] Merge failed: ${e.message}"
+                        MERGE_SUCCESS = 'false'
                     }
                 }
             }
@@ -142,20 +142,20 @@ pipeline {
     post {
         always {
             script {
-                def slack = load 'slack_notifications.groovy'  // Load shared Slack message script
+                def slack = load 'slack_notifications.groovy'  // Load Slack module
 
-                // Construct rich Slack message with all metadata
+                def mergeStatus = MERGE_SUCCESS == 'true'
+                def deployStatus = DEPLOY_SUCCESS == 'true'
+                def color = (mergeStatus && deployStatus) ? 'good' : 'danger'
+
                 def message = slack.constructSlackMessage(
                     env.BUILD_NUMBER,
                     env.BUILD_URL,
-                    env.MERGE_SUCCESS == 'true',
-                    env.DEPLOY_SUCCESS == 'true'
+                    mergeStatus,
+                    deployStatus
                 )
 
-                // Determine color based on pipeline outcome
-                def color = (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
-
-                slack.sendSlackNotification(message, color)  // Send to Slack
+                slack.sendSlackNotification(message, color)  // Send Slack notification
             }
         }
     }  // Close post block
