@@ -7,21 +7,20 @@ pipeline {
 
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Git repository URL
-        FEATURE_BRANCH = "feature-${env.BUILD_NUMBER}"  // Dynamic branch per build
-        DEPLOY_SUCCESS = 'false'  // Track deploy success
-        MERGE_SUCCESS = 'false'   // Track merge success
+        FEATURE_BRANCH = "feature-${env.BUILD_NUMBER}"  // Dynamic feature branch per build
+        DEPLOY_SUCCESS = 'false'
+        MERGE_SUCCESS = 'false'
     }
 
     stages {
-        stage('Skip Merge Commits') {
+        stage('Skip Redundant Merge Builds') {
             steps {
                 script {
-                    // Skip builds triggered by merge commits to prevent loops
-                    def commitMsg = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-                    if (commitMsg.startsWith("Merge remote-tracking branch")) {
-                        echo "Merge commit detected, skipping build."
+                    def lastCommitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+                    if (lastCommitMessage.startsWith("Merge remote-tracking branch")) {
+                        echo "Skipping redundant merge build."
                         currentBuild.result = 'SUCCESS'
-                        error("Stopped: Merge commit")
+                        error("Stopping: merge commit detected.")
                     }
                 }
             }
@@ -31,7 +30,7 @@ pipeline {
             steps {
                 sshagent(['Jenkins-GitHub-SSH']) {
                     sh '''
-                        # Force push current commit to 'feature-test'
+                        # Ensure all commits always go to feature-test
                         git checkout -B feature-test
                         git push -f origin feature-test
                     '''
@@ -49,12 +48,11 @@ pipeline {
                 script {
                     sshagent(['Jenkins-GitHub-SSH']) {
                         sh """
-                            # Create a new isolated feature branch from feature-test
+                            # Create new isolated feature branch for current build
                             git checkout -b ${FEATURE_BRANCH}
                             git push origin ${FEATURE_BRANCH}
                         """
-                        // Set GIT_BRANCH environment variable to use later in pipeline
-                        env.GIT_BRANCH = FEATURE_BRANCH
+                        env.GIT_BRANCH = FEATURE_BRANCH  // Store active branch name
                     }
                 }
             }
@@ -63,11 +61,11 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                    # Setup Python virtual environment and install dependencies
+                    # Create Python venv and install dependencies
                     set -e
                     python3 -m venv venv
                     . venv/bin/activate
-                    pip install --upgrade pip
+                    pip install -U pip
                     pip install -r requirements.txt
                 '''
             }
@@ -76,13 +74,14 @@ pipeline {
         stage('Test') {
             steps {
                 sh '''
-                    # Run Gunicorn and pytest to ensure application correctness
+                    # Ensure Gunicorn not already running, then test
                     set -e
+                    pkill gunicorn || true
                     . venv/bin/activate
                     gunicorn -w 1 -b 127.0.0.1:5000 app:app &
                     sleep 3
                     python -m pytest test_app.py
-                    pkill gunicorn
+                    pkill gunicorn || true
                 '''
             }
         }
@@ -92,13 +91,13 @@ pipeline {
                 script {
                     try {
                         sh '''
-                            # Execute deployment script
+                            # Run deploy script
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        DEPLOY_SUCCESS = 'true'
+                        env.DEPLOY_SUCCESS = 'true'
                     } catch (Exception e) {
-                        DEPLOY_SUCCESS = 'false'
+                        env.DEPLOY_SUCCESS = 'false'
                         error("Deployment failed: ${e.message}")
                     }
                 }
@@ -107,14 +106,14 @@ pipeline {
 
         stage('Merge to Main') {
             when {
-                expression { DEPLOY_SUCCESS == 'true' }
+                expression { env.DEPLOY_SUCCESS == 'true' }
             }
             steps {
                 script {
                     try {
                         sshagent(['Jenkins-GitHub-SSH']) {
                             sh '''
-                                # Merge current feature branch into main
+                                # Merge successful feature branch into main
                                 git config user.name "jenkins"
                                 git config user.email "jenkins@example.com"
                                 git checkout main
@@ -123,9 +122,9 @@ pipeline {
                                 git push origin main
                             '''
                         }
-                        MERGE_SUCCESS = 'true'
+                        env.MERGE_SUCCESS = 'true'
                     } catch (Exception e) {
-                        MERGE_SUCCESS = 'false'
+                        env.MERGE_SUCCESS = 'false'
                         error("Merge failed: ${e.message}")
                     }
                 }
@@ -140,10 +139,10 @@ pipeline {
                 def message = slack.constructSlackMessage(
                     env.BUILD_NUMBER,
                     env.BUILD_URL,
-                    MERGE_SUCCESS == 'true',
-                    DEPLOY_SUCCESS == 'true'
+                    env.MERGE_SUCCESS == 'true',
+                    env.DEPLOY_SUCCESS == 'true'
                 )
-                def color = (MERGE_SUCCESS == 'true' && DEPLOY_SUCCESS == 'true') ? "good" : "danger"
+                def color = (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
                 slack.sendSlackNotification(message, color)
             }
         }
