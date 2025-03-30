@@ -8,8 +8,8 @@ pipeline {
     environment {
         REPO_URL = 'git@github.com:uriya66/DevOps1.git'  // Git repository URL over SSH
         BRANCH_NAME = "feature-${env.BUILD_NUMBER}"  // Dynamic feature branch per build
-        DEPLOY_SUCCESS = 'false'  // Deployment status
-        MERGE_SUCCESS = 'false'  // Merge status
+        DEPLOY_SUCCESS = 'false'  // Deployment status (must be updated via env)
+        MERGE_SUCCESS = 'false'  // Merge status (must be updated via env)
     }
 
     stages {
@@ -82,7 +82,7 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    echo "Setting up virtualenv"
+                    echo "Setting up virtual env"
                     if [ ! -d "venv" ]; then python3 -m venv venv; fi
                     . venv/bin/activate
                     venv/bin/python -m pip install --upgrade pip
@@ -121,9 +121,9 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        DEPLOY_SUCCESS = 'true'
+                        env.DEPLOY_SUCCESS = 'true'  // Must use env to pass status across stages
                     } catch (Exception e) {
-                        DEPLOY_SUCCESS = 'false'
+                        env.DEPLOY_SUCCESS = 'false'  // Set to false if deployment fails
                         error("Deployment failed: ${e.message}")
                     }
                 }
@@ -133,7 +133,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.GIT_BRANCH?.startsWith("feature-") && DEPLOY_SUCCESS == 'true'
+                    return env.GIT_BRANCH?.startsWith("feature-") && env.DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
@@ -150,9 +150,9 @@ pipeline {
                                 git push origin main
                             """
                         }
-                        MERGE_SUCCESS = 'true'
+                        env.MERGE_SUCCESS = 'true'  // Set merge status to true after success
                     } catch (Exception e) {
-                        MERGE_SUCCESS = 'false'
+                        env.MERGE_SUCCESS = 'false'  // Set to false if merge fails
                         error("Merge to main failed: ${e.message}")
                     }
                 }
@@ -168,10 +168,10 @@ pipeline {
                     def message = slack.constructSlackMessage(
                         env.BUILD_NUMBER,
                         env.BUILD_URL,
-                        MERGE_SUCCESS == 'true',
-                        DEPLOY_SUCCESS == 'true'
+                        env.MERGE_SUCCESS == 'true',
+                        env.DEPLOY_SUCCESS == 'true'
                     )
-                    def color = (MERGE_SUCCESS == 'true' && DEPLOY_SUCCESS == 'true') ? "good" : "danger"
+                    def color = (env.MERGE_SUCCESS == 'true' && env.DEPLOY_SUCCESS == 'true') ? "good" : "danger"
                     slack.sendSlackNotification(message, color)
                 } catch (Exception e) {
                     echo "Slack notification error: ${e.message}"
@@ -180,3 +180,4 @@ pipeline {
         }
     }  // Close post block
 }  // Close pipeline block
+
