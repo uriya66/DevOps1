@@ -95,10 +95,12 @@ pipeline {
                             ./deploy.sh
                         '''
                         echo "[INFO] Deployment succeeded"
-                        DEPLOY_SUCCESS = 'true' // Update flag for next stage
+                        DEPLOY_SUCCESS = 'true'
+                        currentBuild.description = "DEPLOY_SUCCESS=true"
                     } catch (e) {
                         echo "[ERROR] Deployment failed"
                         DEPLOY_SUCCESS = 'false'
+                        currentBuild.description = "DEPLOY_SUCCESS=false"
                         currentBuild.result = 'FAILURE'
                         error("Stopping pipeline due to deployment failure.")
                     }
@@ -109,14 +111,14 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    def shouldMerge = (env.DEPLOY_SUCCESS == 'true')
-                    echo "[DEBUG] DEPLOY_SUCCESS=${env.DEPLOY_SUCCESS}, shouldMerge=${shouldMerge}"
-                    return shouldMerge
+                    def successFlag = currentBuild.description?.contains('DEPLOY_SUCCESS=true')
+                    echo "[DEBUG] DEPLOY_SUCCESS flag from description: ${successFlag}"
+                    return successFlag
                 }
             }
             steps {
                 echo "[INFO] Starting merge to main branch"
-                sshagent(credentials: ['git']) {
+                sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
                         git config user.name 'jenkins'
                         git config user.email 'jenkins@example.com'
