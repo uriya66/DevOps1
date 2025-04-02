@@ -26,7 +26,10 @@
     <div class="container text-center mt-5">
         <h1 class="display-4 text-success">✅ Application is Healthy!</h1>
         <p class="lead">Your server is running smoothly without issues.</p>
-        <img src="{{ url_for('static', filename='images/green check.png') }}" class="img-fluid rounded shadow-lg mb-3">
+        <img src="{{ url_for('static', filename='images/green check.png') }}" 
+             alt="Healthy" 
+             class="img-fluid mx-auto d-block my-4 shadow rounded-circle border border-success border-3" 
+             style="max-width: 200px; background-color: transparent;">
         <a href="/" class="btn btn-primary btn-lg">🏠 Back to Home</a>
     </div>
 </body>
