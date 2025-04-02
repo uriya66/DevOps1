@@ -17,19 +17,20 @@ pipeline {
         stage('Skip Auto-Merge Loop on main') {
             steps {
                 script {
-                    // Detect current branch to prevent infinite loop after auto-merge
-                    def gitBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                    echo "[DEBUG] GIT_BRANCH from env: ${env.GIT_BRANCH}"
-                    echo "[DEBUG] Cleaned currentBranch: ${gitBranch}"
+                    // Get the branch name from Jenkins environment variable
+                    def currentBranch = env.BRANCH_NAME
 
-                    if (gitBranch == 'main') {
-                        def lastCommit = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-                        echo "[DEBUG] Last commit message: ${lastCommit}"
-                        if (lastCommit.startsWith("JENKINS AUTO MERGE -")) {
-                            echo "[INFO] Auto-merge commit detected. Skipping build to avoid loop."
-                            currentBuild.result = 'SUCCESS'
-                            error("Skipping build triggered by auto-merge")
-                        }
+                    // Get the latest commit message from Git
+                    def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+
+                    // Print debug info
+                    echo "[DEBUG] currentBranch from env: ${currentBranch}"
+                    echo "[DEBUG] commitMessage: ${commitMessage}"
+
+                    // Skip Jenkins build triggered by auto-merge commit to main branch
+                    if (currentBranch == "main" && commitMessage.contains("JENKINS AUTO MERGE")) {
+                        echo "[INFO] Skipping build triggered by auto-merge commit to main"
+                        error("Skipping auto-merge build on main branch")
                     }
                 }
             }
