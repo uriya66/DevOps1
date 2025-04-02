@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = 'false'  // Track deployment status
+        DEPLOY_SUCCESS = 'false'  //  Track deployment status
         MERGE_SUCCESS = 'false'   // Track merge status
     }
 
