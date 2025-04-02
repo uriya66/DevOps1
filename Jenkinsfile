@@ -14,21 +14,26 @@ pipeline {
         }
 
         stage('Skip Redundant Merge Builds') {
-            when {
-                branch 'main'  // Only check for skip if we're on main
-            }
             steps {
                 script {
-                    def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                    echo "[DEBUG] Last commit message: ${lastCommitMessage}"
+                    def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    echo "[DEBUG] Current branch for skip check: ${currentBranch}"
 
-                    // Skip only if message starts with exact Jenkins auto-merge signature
-                    if (lastCommitMessage.startsWith('JENKINS AUTO MERGE -')) {
-                        echo "[INFO] Detected auto-merge commit by Jenkins. Skipping redundant pipeline run."
-                        currentBuild.result = 'SUCCESS'
-                        return  // Exit early from pipeline
+                    // Only skip redundant build if the current branch is main
+                    if (currentBranch == 'main') {
+                        def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                        echo "[DEBUG] Last commit message: ${lastCommitMessage}"
+
+                        // Skip only if message starts with exact Jenkins auto-merge signature
+                        if (lastCommitMessage.startsWith('JENKINS AUTO MERGE -')) {
+                            echo "[INFO] Detected auto-merge commit by Jenkins. Skipping redundant pipeline run."
+                            currentBuild.result = 'SUCCESS'  // Mark build as successful
+                            return  // Exit early from pipeline
+                        } else {
+                            echo "[DEBUG] Commit is not an auto-merge. Continuing pipeline."
+                        }
                     } else {
-                        echo "[DEBUG] Commit is not an auto-merge. Continuing pipeline."
+                        echo "[INFO] Skip check not needed for branch: ${currentBranch}"
                     }
                 }
             }
