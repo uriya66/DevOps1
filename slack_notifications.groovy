@@ -1,4 +1,4 @@
-// Construct a Slack message with Git info and app links
+// Build Slack message from Jenkins data and Git
 def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySuccess = null) {
     try {
         // Retrieve commit ID from Git
@@ -16,9 +16,6 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Get pipeline duration in readable format
         def duration = "${currentBuild.durationString.replace(' and counting', '')}"
 
-        // Extract Jenkins base URL from full build URL
-        def jenkinsUrl = buildUrl.split('/job/')[0]
-
         // Get dynamic public IP of the server
         def publicIp = sh(script: "curl -s http://checkip.amazonaws.com", returnStdout: true).trim()
 
@@ -28,15 +25,15 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Build result summary (merge/deploy)
         def resultNote = ""
         if (mergeSuccess != null && deploySuccess != null) {
-            resultNote += mergeSuccess ? "*Merge:* ✅ Successful\n" : "*Merge:* ❌ Failed\n"
-            resultNote += deploySuccess ? "*Deploy:* ✅ Successful\n" : "*Deploy:* ❌ Failed\n"
+            resultNote += mergeSuccess ? "*Merge:* ✅ Successful - merged to main\n" : "*Merge:* ❌ Failed - merge error occurred\n"
+            resultNote += deploySuccess ? "*Deploy:* ✅ Successful - app deployed to server\n" : "*Deploy:* ❌ Failed - deployment script error\n"
         }
 
-        // Build full Slack message with clean format (no localhost)
+        // Build full Slack message with clean format (no localhost
         return """
 *✅ Jenkins Build Completed!*
 *Pipeline:* #${buildNumber}
-*Branch:* ${branch}
+*Branch:* feature-${buildNumber}
 *Commit:* [${commitId}](${commitUrl})
 *Message:* ${commitMessage}
 *Duration:* ${duration}
@@ -46,13 +43,13 @@ ${resultNote}
 - ${appUrl}
         """.stripIndent()
 
-    } catch (Exception e) {
+    } catch (e) {
         echo "Slack message error: ${e.message}"  // Log error if message construction fails
-        return "*❌ Error constructing Slack message*\nReason: ${e.message}"  // Return fallback message
+        return "*❌ Error building Slack message*\nReason: ${e.message}" // Return fallback message
     }
 }
 
-// Send a message to Slack channel using Jenkins credentials
+// Send Slack alert via token and color code
 def sendSlackNotification(String message, String color) {
     try {
         slackSend(
@@ -61,10 +58,10 @@ def sendSlackNotification(String message, String color) {
             message: message,  // Slack message content
             color: color  // Slack color code: good, warning, danger
         )
-    } catch (Exception e) {
-        echo "Slack notification failed: ${e.message}"  // Log if Slack sending fails
+    } catch (e) {
+        echo "Slack send failed: ${e.message}"  // Log if Slack sending fails
     }
 }
 
 // Return this script object so it can be load to Jenkinsfile
-return this  // Return this object to Jenkinsfile
+return this  // Return this object to Jenkinsfil

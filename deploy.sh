@@ -43,4 +43,3 @@ fi
 
 # Output deployment success
 echo "Deployment completed successfully. App is running on localhost and public IP."
-

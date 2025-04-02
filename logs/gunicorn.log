@@ -1,7 +1,0 @@
-[2025-03-16 11:51:40 +0000] [30846] [INFO] Starting gunicorn 23.0.0
-[2025-03-16 11:51:40 +0000] [30846] [INFO] Listening at: http://0.0.0.0:5000 (30846)
-[2025-03-16 11:51:40 +0000] [30846] [INFO] Using worker: sync
-[2025-03-16 11:51:40 +0000] [30848] [INFO] Booting worker with pid: 30848
-[2025-03-16 11:51:40 +0000] [30849] [INFO] Booting worker with pid: 30849
-[2025-03-16 11:51:40 +0000] [30850] [INFO] Booting worker with pid: 30850
-[2025-03-16 11:51:40 +0000] [30851] [INFO] Booting worker with pid: 30851

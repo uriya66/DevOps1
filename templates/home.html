@@ -26,8 +26,10 @@
     <div class="container text-center mt-5">
         <h1 class="display-3">🚀 Welcome to My Flask App!</h1>
         <p class="lead">Your simple and beautiful Flask application.</p>
-        <img src="https://source.unsplash.com/800x400/?technology,web" class="img-fluid rounded shadow-lg mb-3">
-        <div class="d-flex justify-content-center gap-3">
+        <img src="{{ url_for('static', filename='images/rocket.png') }}"
+             alt="Rocket"
+             class="d-block mx-auto my-4"
+             style="max-width: 250px; filter: drop-shadow(0px 4px 12px rgba(0,0,0,0.2));">
             <a href="/health" class="btn btn-success btn-lg">🔍 Check Health</a>
             <a href="/404" class="btn btn-danger btn-lg">🚫 Test 404 Page</a>
         </div>
