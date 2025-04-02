@@ -1,34 +1,34 @@
 pipeline {
-    agent any
+    agent any  // Use any available agent for the pipeline
 
     environment {
-        DEPLOY_SUCCESS = 'false'  // Tracks if deployment was successful
-        MERGE_SUCCESS  = 'false'  // Tracks if merge was successful
+        DEPLOY_SUCCESS = 'false'   // Track deployment result across stages
+        MERGE_SUCCESS = 'false'    // Track merge result across stages
     }
 
     stages {
 
         stage('Init Git from Trigger Source') {
             steps {
-                checkout scm  // Default checkout from GitHub push trigger
+                checkout scm  // Checkout the repository source that triggered the pipeline
             }
         }
 
         stage('Skip Auto-Merge Loop on main') {
             steps {
                 script {
-                    def currentBranch = env.GIT_BRANCH?.replace('origin/', '') ?: 'UNKNOWN'
+                    // Detect current branch to prevent infinite loop after auto-merge
+                    def gitBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
                     echo "[DEBUG] GIT_BRANCH from env: ${env.GIT_BRANCH}"
-                    echo "[DEBUG] Cleaned currentBranch: ${currentBranch}"
+                    echo "[DEBUG] Cleaned currentBranch: ${gitBranch}"
 
-                    if (currentBranch == 'main') {
-                        def lastCommitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-                        echo "[DEBUG] Last commit on main: ${lastCommitMessage}"
-
-                        if (lastCommitMessage.startsWith("JENKINS AUTO MERGE -")) {
-                            echo "[INFO] Auto-merge commit detected. Skipping redundant build."
+                    if (gitBranch == 'main') {
+                        def lastCommit = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+                        echo "[DEBUG] Last commit message: ${lastCommit}"
+                        if (lastCommit.startsWith("JENKINS AUTO MERGE -")) {
+                            echo "[INFO] Auto-merge commit detected. Skipping build to avoid loop."
                             currentBuild.result = 'SUCCESS'
-                            error("Stopping pipeline: redundant auto-merge build on main.")
+                            error("Skipping build triggered by auto-merge")
                         }
                     }
                 }
@@ -38,7 +38,7 @@ pipeline {
         stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'  // Validate SSH access
+                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'  // Verify GitHub SSH access
                 }
             }
         }
@@ -59,8 +59,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER}
-                        git push origin feature-${BUILD_NUMBER}
+                        git checkout -b feature-${BUILD_NUMBER}       # Create new feature branch from feature-test
+                        git push origin feature-${BUILD_NUMBER}       # Push the new feature branch to GitHub
                     """
                 }
             }
@@ -71,9 +71,9 @@ pipeline {
                 echo "[DEBUG] Installing dependencies"
                 sh '''
                     set -e
-                    [ ! -d venv ] && python3 -m venv venv
-                    . venv/bin/activate
-                    pip install --upgrade pip flask pytest gunicorn requests
+                    [ ! -d venv ] && python3 -m venv venv                     # Create virtual environment if not exists
+                    . venv/bin/activate                                       # Activate Python virtual environment
+                    pip install --upgrade pip flask pytest gunicorn requests  # Install required Python packages
                 '''
             }
         }
@@ -83,11 +83,11 @@ pipeline {
                 echo "[DEBUG] Running tests"
                 sh '''
                     set -e
-                    . venv/bin/activate
-                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &
-                    sleep 5
-                    pytest test_app.py
-                    pkill -f gunicorn || true
+                    . venv/bin/activate                                       # Activate virtual environment
+                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &                 # Start Flask app for testing
+                    sleep 5                                                   # Wait for app to be available
+                    pytest test_app.py                                        # Run test suite
+                    pkill -f gunicorn || true                                 # Stop Gunicorn server
                 '''
             }
         }
@@ -98,16 +98,15 @@ pipeline {
                     try {
                         echo "[DEBUG] Running deploy script"
                         sh '''
-                            chmod +x deploy.sh
-                            ./deploy.sh
+                            chmod +x deploy.sh                                # Make deploy script executable
+                            ./deploy.sh                                       # Execute deployment script
                         '''
-                        DEPLOY_SUCCESS = 'true'
+                        DEPLOY_SUCCESS = 'true'                               // Mark deployment as successful
                         echo "[DEBUG] DEPLOY_SUCCESS=true"
-                        currentBuild.description = "DEPLOY_SUCCESS=true"
                     } catch (err) {
                         echo "[ERROR] Deployment failed: ${err.message}"
-                        DEPLOY_SUCCESS = 'false'
-                        currentBuild.description = "DEPLOY_SUCCESS=false"
+                        DEPLOY_SUCCESS = 'false'                              // Mark deployment as failed
+                        echo "[DEBUG] DEPLOY_SUCCESS=false"
                         currentBuild.result = 'FAILURE'
                     }
                 }
@@ -117,8 +116,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    echo "[DEBUG] Checking if deploy succeeded for merge stage: ${DEPLOY_SUCCESS}"
-                    return DEPLOY_SUCCESS == 'true'
+                    return DEPLOY_SUCCESS == 'true'  // Only merge if deployment succeeded
                 }
             }
             steps {
@@ -126,27 +124,27 @@ pipeline {
                     try {
                         echo "[INFO] Merging feature-${BUILD_NUMBER} to main"
                         sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                            def lastCommit = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-                            echo "[DEBUG] Commit before merge: ${lastCommit}"
+                            def commitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                            echo "[DEBUG] Commit before merge: ${commitMsg}"
 
-                            if (!lastCommit.startsWith("JENKINS AUTO MERGE -")) {
+                            if (!commitMsg.startsWith("JENKINS AUTO MERGE -")) {
                                 sh """
-                                    git config user.name 'jenkins'
-                                    git config user.email 'jenkins@example.com'
-                                    git checkout main
-                                    git pull origin main
+                                    git config user.name 'jenkins'                                    # Set Git username
+                                    git config user.email 'jenkins@example.com'                       # Set Git email
+                                    git checkout main                                                 # Checkout main branch
+                                    git pull origin main                                              # Pull latest main changes
                                     git merge --no-ff feature-${BUILD_NUMBER} -m 'JENKINS AUTO MERGE - CI: Auto-merge feature branch to main after successful pipeline'
-                                    git push origin main
+                                    git push origin main                                              # Push merged changes
                                 """
-                                MERGE_SUCCESS = 'true'
+                                MERGE_SUCCESS = 'true'                                                // Mark merge as successful
                                 echo "[DEBUG] MERGE_SUCCESS=true"
                             } else {
-                                echo "[INFO] Merge skipped - already auto-merged"
+                                echo "[INFO] Skipping merge - already merged automatically"
                             }
                         }
-                    } catch (e) {
-                        echo "[ERROR] Merge failed: ${e.message}"
-                        MERGE_SUCCESS = 'false'
+                    } catch (err) {
+                        echo "[ERROR] Merge failed: ${err.message}"
+                        MERGE_SUCCESS = 'false'  // Mark merge as failed
                         echo "[DEBUG] MERGE_SUCCESS=false"
                     }
                 }
@@ -157,7 +155,7 @@ pipeline {
     post {
         always {
             script {
-                def slack = load 'slack_notifications.groovy'
+                def slack = load 'slack_notifications.groovy'  // Load Slack notification helper script
 
                 def mergeStatus = MERGE_SUCCESS == 'true'
                 def deployStatus = DEPLOY_SUCCESS == 'true'
@@ -172,7 +170,7 @@ pipeline {
                     deployStatus
                 )
 
-                slack.sendSlackNotification(message, color)
+                slack.sendSlackNotification(message, color)  // Send formatted message to Slack
             }
         }
     }  // Close post block
