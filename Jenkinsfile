@@ -16,21 +16,19 @@ pipeline {
         stage('Skip Redundant Merge Builds') {
             steps {
                 script {
-                    // Get the current branch name (e.g., main, feature-123)
+                    // Get the current branch name
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
                     echo "[DEBUG] Current branch for skip check: ${currentBranch}"
 
-                    // Only skip redundant build if the current branch is main
+                    // Skip redundant builds only for main
                     if (currentBranch == 'main') {
-                        // Get the last commit message from Git
                         def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                         echo "[DEBUG] Last commit message: ${lastCommitMessage}"
 
-                        // Skip build only if last commit was an automatic Jenkins merge
                         if (lastCommitMessage.startsWith('JENKINS AUTO MERGE -')) {
                             echo "[INFO] Detected auto-merge commit by Jenkins. Skipping redundant pipeline run."
-                            currentBuild.result = 'SUCCESS'  // Mark the build as successful
-                            return                                 // Exit early to avoid unnecessary steps
+                            currentBuild.result = 'SUCCESS'
+                            error("Skipping pipeline due to auto-merge")  //  Fully stops the pipeline
                         } else {
                             echo "[DEBUG] Commit is not an auto-merge. Continuing pipeline."
                         }
@@ -107,7 +105,7 @@ pipeline {
                             chmod +x deploy.sh                        # Make deploy script executable
                             ./deploy.sh                               # Run deployment script
                         '''
-                        DEPLOY_SUCCESS = 'true'                       // ✅ Set variable globally
+                        DEPLOY_SUCCESS = 'true'                       // Set deployment success flag
                         echo "[DEBUG] DEPLOY_SUCCESS=true"
                         currentBuild.description = "DEPLOY_SUCCESS=true"
                     } catch (err) {
@@ -125,7 +123,7 @@ pipeline {
             when {
                 expression {
                     echo "[DEBUG] Checking DEPLOY_SUCCESS value for merge stage: ${DEPLOY_SUCCESS}"
-                    return DEPLOY_SUCCESS == 'true'  // ✅ Check fixed global variable
+                    return DEPLOY_SUCCESS == 'true'  // ✅ Check deploy success before merging
                 }
             }
             steps {
@@ -145,7 +143,7 @@ pipeline {
                                     git merge --no-ff feature-${BUILD_NUMBER} -m 'JENKINS AUTO MERGE - CI: Auto-merge feature branch to main after successful pipeline'
                                     git push origin main                                        # Push changes to GitHub
                                 """
-                                MERGE_SUCCESS = 'true'                                         // ✅ Mark merge as successful
+                                MERGE_SUCCESS = 'true'                                         // Mark merge as successful
                                 echo "[DEBUG] MERGE_SUCCESS=true"
                             } else {
                                 echo "[INFO] Merge skipped - already merged by Jenkins."
@@ -164,7 +162,7 @@ pipeline {
     post {
         always {
             script {
-                def slack = load 'slack_notifications.groovy'  // Load Slack notification helper
+                def slack = load 'slack_notifications.groovy'  // Load Slack helper
 
                 def mergeStatus = MERGE_SUCCESS == 'true'
                 def deployStatus = DEPLOY_SUCCESS == 'true'
@@ -179,7 +177,7 @@ pipeline {
                     deployStatus
                 )
 
-                slack.sendSlackNotification(message, color)  // Send Slack notification
+                slack.sendSlackNotification(message, color)  //  Send Slack update
             }
         }
     }  // Close post block
