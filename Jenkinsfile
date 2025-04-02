@@ -27,6 +27,8 @@ pipeline {
                         echo "[INFO] Detected auto-merge commit by Jenkins. Skipping redundant pipeline run."
                         currentBuild.result = 'SUCCESS'
                         return  // Exit early from pipeline
+                    } else {
+                        echo "[DEBUG] Commit is not an auto-merge. Continuing pipeline."
                     }
                 }
             }
@@ -98,11 +100,13 @@ pipeline {
                             chmod +x deploy.sh                        # Make deploy script executable
                             ./deploy.sh                               # Run deployment script
                         '''
-                        env.DEPLOY_SUCCESS = 'true'                   // Mark deployment as successful
+                        DEPLOY_SUCCESS = 'true'                       // ✅ Set variable globally
+                        echo "[DEBUG] DEPLOY_SUCCESS=true"
                         currentBuild.description = "DEPLOY_SUCCESS=true"
                     } catch (err) {
                         echo "[ERROR] Deployment failed: ${err.message}"
-                        env.DEPLOY_SUCCESS = 'false'
+                        DEPLOY_SUCCESS = 'false'
+                        echo "[DEBUG] DEPLOY_SUCCESS=false"
                         currentBuild.description = "DEPLOY_SUCCESS=false"
                         currentBuild.result = 'FAILURE'
                     }
@@ -113,7 +117,8 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.DEPLOY_SUCCESS == 'true'  // Only merge if deployment succeeded
+                    echo "[DEBUG] Checking DEPLOY_SUCCESS value for merge stage: ${DEPLOY_SUCCESS}"
+                    return DEPLOY_SUCCESS == 'true'  // ✅ Check fixed global variable
                 }
             }
             steps {
@@ -129,18 +134,20 @@ pipeline {
                                     git config user.name 'jenkins'                              # Set Git user
                                     git config user.email 'jenkins@example.com'                 # Set Git email
                                     git checkout main                                           # Switch to main
-                                    git pull origin main                                       # Sync with remote
+                                    git pull origin main                                        # Sync with remote
                                     git merge --no-ff feature-${BUILD_NUMBER} -m 'JENKINS AUTO MERGE - CI: Auto-merge feature branch to main after successful pipeline'
-                                    git push origin main                                       # Push changes to GitHub
+                                    git push origin main                                        # Push changes to GitHub
                                 """
-                                env.MERGE_SUCCESS = 'true'                                     // Mark merge as successful
+                                MERGE_SUCCESS = 'true'                                         // ✅ Mark merge as successful
+                                echo "[DEBUG] MERGE_SUCCESS=true"
                             } else {
                                 echo "[INFO] Merge skipped - already merged by Jenkins."
                             }
                         }
                     } catch (e) {
                         echo "[ERROR] Merge failed: ${e.message}"
-                        env.MERGE_SUCCESS = 'false'
+                        MERGE_SUCCESS = 'false'
+                        echo "[DEBUG] MERGE_SUCCESS=false"
                     }
                 }
             }
@@ -152,9 +159,11 @@ pipeline {
             script {
                 def slack = load 'slack_notifications.groovy'  // Load Slack notification helper
 
-                def mergeStatus = env.MERGE_SUCCESS == 'true'
-                def deployStatus = env.DEPLOY_SUCCESS == 'true'
+                def mergeStatus = MERGE_SUCCESS == 'true'
+                def deployStatus = DEPLOY_SUCCESS == 'true'
                 def color = (mergeStatus && deployStatus) ? 'good' : 'danger'
+
+                echo "[DEBUG] Sending Slack notification with DEPLOY_SUCCESS=${deployStatus}, MERGE_SUCCESS=${mergeStatus}"
 
                 def message = slack.constructSlackMessage(
                     env.BUILD_NUMBER,
