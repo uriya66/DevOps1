@@ -6,19 +6,6 @@ pipeline {
         MERGE_SUCCESS = 'false'    // Track merge result across stages
     }
 
-    triggers {
-        // Use Generic Webhook Trigger Plugin to filter payload before execution
-        GenericTrigger(
-            genericVariables: [
-                [key: 'GIT_COMMIT_MESSAGE', value: '$.head_commit.message']  // Extract commit message from GitHub payload
-            ],
-            causeString: 'Triggered by GitHub Push: $GIT_COMMIT_MESSAGE',
-            tokenCredentialId: 'GitHub PAT token for webhook and repo access',
-            regexpFilterText: '$GIT_COMMIT_MESSAGE',
-            regexpFilterExpression: '^(?!JENKINS AUTO MERGE).*'  // Prevent infinite loop on auto-merge
-        )
-    }
-
     stages {
 
         stage('Start SSH Agent') {
