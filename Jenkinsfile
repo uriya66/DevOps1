@@ -2,27 +2,31 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = ''  // Track deployment status (string intentionally)
-        MERGE_SUCCESS = ''   // Track merge status (string intentionally)
+        DEPLOY_SUCCESS = 'false'  // Track deployment status
+        MERGE_SUCCESS = 'false'   // Track merge status
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                checkout scm  // Checkout the source that triggered this pipeline
+                checkout scm  // Checkout the source that triggered the pipeline
             }
         }
 
         stage('Skip Redundant Merge Builds') {
+            when {
+                branch 'main'  // Only check for skip if we're on main
+            }
             steps {
                 script {
                     def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "[DEBUG] Last commit message: ${lastCommitMessage}"
-
-                    if (lastCommitMessage.contains('CI: Auto-merge feature branch to main after successful pipeline')) {
-                        echo "[INFO] Detected auto-merge commit. Skipping build."
+                    
+                    // Skip only if the commit message is exactly the auto-merge message
+                    if (lastCommitMessage == 'CI: Auto-merge feature branch to main after successful pipeline') {
+                        echo "[INFO] Detected auto-merge commit. Skipping redundant pipeline run."
                         currentBuild.result = 'SUCCESS'
-                        return
+                        return  // Exit early from pipeline
                     }
                 }
             }
@@ -94,7 +98,7 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        env.DEPLOY_SUCCESS = 'true'  // Set global string env var
+                        env.DEPLOY_SUCCESS = 'true'  // Mark deployment as successful
                         currentBuild.description = "DEPLOY_SUCCESS=true"
                     } catch (err) {
                         echo "[ERROR] Deployment failed: ${err.message}"
@@ -109,7 +113,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return env.DEPLOY_SUCCESS == 'true'
+                    return env.DEPLOY_SUCCESS == 'true'  // Only merge if deployment succeeded
                 }
             }
             steps {
@@ -126,7 +130,7 @@ pipeline {
                                 git push origin main
                             """
                         }
-                        env.MERGE_SUCCESS = 'true'
+                        env.MERGE_SUCCESS = 'true'  // Mark merge as successful
                     } catch (e) {
                         echo "[ERROR] Merge failed: ${e.message}"
                         env.MERGE_SUCCESS = 'false'
