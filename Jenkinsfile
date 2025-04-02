@@ -16,19 +16,21 @@ pipeline {
         stage('Skip Redundant Merge Builds') {
             steps {
                 script {
+                    // Get the current branch name (e.g., main, feature-123)
                     def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
                     echo "[DEBUG] Current branch for skip check: ${currentBranch}"
 
                     // Only skip redundant build if the current branch is main
                     if (currentBranch == 'main') {
+                        // Get the last commit message from Git
                         def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                         echo "[DEBUG] Last commit message: ${lastCommitMessage}"
 
-                        // Skip only if message starts with exact Jenkins auto-merge signature
+                        // Skip build only if last commit was an automatic Jenkins merge
                         if (lastCommitMessage.startsWith('JENKINS AUTO MERGE -')) {
                             echo "[INFO] Detected auto-merge commit by Jenkins. Skipping redundant pipeline run."
-                            currentBuild.result = 'SUCCESS'  // Mark build as successful
-                            return  // Exit early from pipeline
+                            currentBuild.result = 'SUCCESS'  // Mark the build as successful
+                            return                                 // Exit early to avoid unnecessary steps
                         } else {
                             echo "[DEBUG] Commit is not an auto-merge. Continuing pipeline."
                         }
