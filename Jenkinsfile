@@ -3,38 +3,23 @@ pipeline {
 
     environment {
         DEPLOY_SUCCESS = 'false'   // Track deployment result across stages
-        MERGE_SUCCESS  = 'false'   // Track merge result across stages
+        MERGE_SUCCESS = 'false'    // Track merge result across stages
+    }
+
+    triggers {
+        // Use Generic Webhook Trigger Plugin to filter payload before execution
+        GenericTrigger(
+            genericVariables: [
+                [key: 'GIT_COMMIT_MESSAGE', value: '$.head_commit.message']  // Extract commit message from GitHub payload
+            ],
+            causeString: 'Triggered by GitHub Push: $GIT_COMMIT_MESSAGE',
+            tokenCredentialId: 'GitHub PAT token for webhook and repo access',
+            regexpFilterText: '$GIT_COMMIT_MESSAGE',
+            regexpFilterExpression: '^(?!JENKINS AUTO MERGE).*'  // Prevent infinite loop on auto-merge
+        )
     }
 
     stages {
-
-        stage('Init Git from Trigger Source') {
-            steps {
-                checkout scm  // Checkout the repository source that triggered the pipeline
-            }
-        }
-
-        stage('Skip Auto-Merge Loop on main') {
-            steps {
-                script {
-                    // Get the branch name from Jenkins environment variable
-                    def currentBranch = env.BRANCH_NAME
-
-                    // Get the latest commit message from Git
-                    def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-
-                    // Print debug info
-                    echo "[DEBUG] currentBranch from env: ${currentBranch}"
-                    echo "[DEBUG] commitMessage: ${commitMessage}"
-
-                    // Skip Jenkins build triggered by auto-merge commit to main branch
-                    if (currentBranch == "main" && commitMessage.contains("JENKINS AUTO MERGE")) {
-                        echo "[INFO] Skipping build triggered by auto-merge commit to main"
-                        error("Skipping auto-merge build on main branch")
-                    }
-                }
-            }
-        }
 
         stage('Start SSH Agent') {
             steps {
@@ -145,7 +130,7 @@ pipeline {
                         }
                     } catch (err) {
                         echo "[ERROR] Merge failed: ${err.message}"
-                        MERGE_SUCCESS = 'false'                                                       // Mark merge as failed
+                        MERGE_SUCCESS = 'false'  // Mark merge as failed
                         echo "[DEBUG] MERGE_SUCCESS=false"
                     }
                 }
@@ -158,17 +143,17 @@ pipeline {
             script {
                 def slack = load 'slack_notifications.groovy'  // Load Slack notification helper script
 
-                def mergeStatus  = MERGE_SUCCESS == 'true'
+                def mergeStatus = MERGE_SUCCESS == 'true'
                 def deployStatus = DEPLOY_SUCCESS == 'true'
-                def color        = (mergeStatus && deployStatus) ? 'good' : 'danger'
+                def color = (mergeStatus && deployStatus) ? 'good' : 'danger'
 
                 echo "[DEBUG] Sending Slack notification with DEPLOY_SUCCESS=${deployStatus}, MERGE_SUCCESS=${mergeStatus}"
 
                 def message = slack.constructSlackMessage(
-                    env.BUILD_NUMBER,      // Jenkins build number
-                    env.BUILD_URL,         // Jenkins build URL
-                    mergeStatus,           // Boolean merge status
-                    deployStatus           // Boolean deploy status
+                    env.BUILD_NUMBER,
+                    env.BUILD_URL,
+                    mergeStatus,
+                    deployStatus
                 )
 
                 slack.sendSlackNotification(message, color)  // Send formatted message to Slack
@@ -176,3 +161,4 @@ pipeline {
         }
     }  // Close post block
 }  // Close pipeline block
+
