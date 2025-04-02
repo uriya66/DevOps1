@@ -16,24 +16,27 @@ pipeline {
         stage('Skip Redundant Merge Builds') {
             steps {
                 script {
-                    // Get the current branch name
-                    def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    // Get the real current branch name (e.g., 'main' or 'feature-test')
+                    def currentBranch = sh(script: "git rev-parse --symbolic-full-name --abbrev-ref HEAD", returnStdout: true).trim()
                     echo "[DEBUG] Current branch for skip check: ${currentBranch}"
+                    echo "[DEBUG] GIT_BRANCH from env: ${env.GIT_BRANCH}"  // Print env var for additional debugging
 
-                    // Skip redundant builds only for main
+                    // Only skip builds if triggered on main branch (after auto-merge)
                     if (currentBranch == 'main') {
+                        // Get the last Git commit message
                         def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                         echo "[DEBUG] Last commit message: ${lastCommitMessage}"
 
+                        // Skip only if it's an auto-merge commit from Jenkins
                         if (lastCommitMessage.startsWith('JENKINS AUTO MERGE -')) {
-                            echo "[INFO] Detected auto-merge commit by Jenkins. Skipping redundant pipeline run."
-                            currentBuild.result = 'SUCCESS'
-                            error("Skipping pipeline due to auto-merge")  //  Fully stops the pipeline
+                            echo "[INFO] Detected Jenkins auto-merge to main. Skipping redundant pipeline run."
+                            currentBuild.result = 'SUCCESS'            // Mark build as successful
+                            error("Skipping pipeline due to auto-merge")  // Hard stop pipeline execution
                         } else {
                             echo "[DEBUG] Commit is not an auto-merge. Continuing pipeline."
                         }
                     } else {
-                        echo "[INFO] Skip check not needed for branch: ${currentBranch}"
+                        echo "[INFO] Skip check not required for branch: ${currentBranch}"
                     }
                 }
             }
