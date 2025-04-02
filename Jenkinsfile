@@ -2,19 +2,14 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = 'false'  // Track deployment result
-        MERGE_SUCCESS = 'false'   // Track merge result
-        GIT_SOURCE_BRANCH = ''    // Original push source (main or feature-test)
+        DEPLOY_SUCCESS = 'false'  // Track deployment status
+        MERGE_SUCCESS = 'false'   // Track merge status
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                checkout scm  // Checkout source code from SCM
-                script {
-                    GIT_SOURCE_BRANCH = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                    echo "[DEBUG] GIT_SOURCE_BRANCH=${GIT_SOURCE_BRANCH}"
-                }
+                checkout scm  // Checkout source triggered this pipeline
             }
         }
 
@@ -24,7 +19,7 @@ pipeline {
                     def lastCommit = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "[DEBUG] Last commit message: ${lastCommit}"
                     if (lastCommit.contains('Merge branch')) {
-                        echo "[INFO] Skipping build due to merge commit."
+                        echo "[INFO] Skipping redundant build triggered by merge commit."
                         currentBuild.result = 'SUCCESS'
                         return
                     }
@@ -35,7 +30,7 @@ pipeline {
         stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'  // Verify GitHub access
+                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'  // Confirm SSH access
                 }
             }
         }
@@ -48,7 +43,7 @@ pipeline {
                         url: 'git@github.com:uriya66/DevOps1.git',
                         credentialsId: 'Jenkins-GitHub-SSH'
                     ]]
-                ])  // Ensure we use the latest pushed code from feature-test
+                ])
             }
         }
 
@@ -56,8 +51,8 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER}  # Create new branch from latest push
-                        git push origin feature-${BUILD_NUMBER}  # Push to GitHub
+                        git checkout -b feature-${BUILD_NUMBER}
+                        git push origin feature-${BUILD_NUMBER}
                     """
                 }
             }
@@ -65,7 +60,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo "[DEBUG] Installing dependencies"
+                echo "[DEBUG] Installing Python dependencies"
                 sh '''
                     set -e
                     [ ! -d venv ] && python3 -m venv venv
@@ -77,7 +72,7 @@ pipeline {
 
         stage('Test') {
             steps {
-                echo "[DEBUG] Running tests"
+                echo "[DEBUG] Running pytest and Flask health"
                 sh '''
                     set -e
                     . venv/bin/activate
@@ -93,17 +88,15 @@ pipeline {
             steps {
                 script {
                     try {
-                        echo "[DEBUG] Running deployment script"
+                        echo "[DEBUG] Running deploy.sh script"
                         sh '''
-                            set -e
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        echo "[INFO] Deployment succeeded"
                         DEPLOY_SUCCESS = 'true'
                         currentBuild.description = "DEPLOY_SUCCESS=true"
-                    } catch (e) {
-                        echo "[ERROR] Deployment failed: ${e.message}"
+                    } catch (err) {
+                        echo "[ERROR] Deployment failed: ${err.message}"
                         DEPLOY_SUCCESS = 'false'
                         currentBuild.description = "DEPLOY_SUCCESS=false"
                         currentBuild.result = 'FAILURE'
@@ -121,7 +114,7 @@ pipeline {
             steps {
                 script {
                     try {
-                        echo "[INFO] Starting merge to main"
+                        echo "[INFO] Merging feature-${BUILD_NUMBER} to main"
                         sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                             sh """
                                 git config user.name 'jenkins'
@@ -145,7 +138,7 @@ pipeline {
     post {
         always {
             script {
-                def slack = load 'slack_notifications.groovy'  // Load Slack module
+                def slack = load 'slack_notifications.groovy'
 
                 def mergeStatus = MERGE_SUCCESS == 'true'
                 def deployStatus = DEPLOY_SUCCESS == 'true'
@@ -158,9 +151,8 @@ pipeline {
                     deployStatus
                 )
 
-                slack.sendSlackNotification(message, color)  // Send Slack notification
+                slack.sendSlackNotification(message, color)
             }
         }
-    }
-}
-
+    }  // Close post block
+}  // Close pipeline block
