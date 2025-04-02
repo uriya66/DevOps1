@@ -38,7 +38,7 @@ pipeline {
         stage('Checkout Main') {
             steps {
                 checkout([$class: 'GitSCM',
-                    branches: [[name: '*/main']],
+                    branches: [[name: '*/feature-test']],
                     userRemoteConfigs: [[
                         url: 'git@github.com:uriya66/DevOps1.git',
                         credentialsId: 'Jenkins-GitHub-SSH'
@@ -51,7 +51,7 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER}  # Create new branch
+                        git checkout -b feature-${BUILD_NUMBER} origin/feature-test  # Create new branch
                         git push origin feature-${BUILD_NUMBER}  # Push to GitHub
                     """
                 }
@@ -160,4 +160,5 @@ pipeline {
         }
     }  // Close post block
 }  // Close pipeline block
+
 
