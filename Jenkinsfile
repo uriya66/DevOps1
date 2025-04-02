@@ -2,41 +2,34 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = 'false'  // Track deployment status
-        MERGE_SUCCESS = 'false'   // Track merge status
+        DEPLOY_SUCCESS = 'false'  // Tracks if deployment was successful
+        MERGE_SUCCESS  = 'false'  // Tracks if merge was successful
     }
 
     stages {
-        stage('Checkout SCM') {
+
+        stage('Init Git from Trigger Source') {
             steps {
-                checkout scm  // Checkout the source that triggered the pipeline
+                checkout scm  // Default checkout from GitHub push trigger
             }
         }
 
-        stage('Skip Redundant Merge Builds') {
+        stage('Skip Auto-Merge Loop on main') {
             steps {
                 script {
-                    // Get the real current branch name (e.g., 'main' or 'feature-test')
-                    def currentBranch = sh(script: "git rev-parse --symbolic-full-name --abbrev-ref HEAD", returnStdout: true).trim()
-                    echo "[DEBUG] Current branch for skip check: ${currentBranch}"
-                    echo "[DEBUG] GIT_BRANCH from env: ${env.GIT_BRANCH}"  // Print env var for additional debugging
+                    def currentBranch = env.GIT_BRANCH?.replace('origin/', '') ?: 'UNKNOWN'
+                    echo "[DEBUG] GIT_BRANCH from env: ${env.GIT_BRANCH}"
+                    echo "[DEBUG] Cleaned currentBranch: ${currentBranch}"
 
-                    // Only skip builds if triggered on main branch (after auto-merge)
                     if (currentBranch == 'main') {
-                        // Get the last Git commit message
-                        def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                        echo "[DEBUG] Last commit message: ${lastCommitMessage}"
+                        def lastCommitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+                        echo "[DEBUG] Last commit on main: ${lastCommitMessage}"
 
-                        // Skip only if it's an auto-merge commit from Jenkins
-                        if (lastCommitMessage.startsWith('JENKINS AUTO MERGE -')) {
-                            echo "[INFO] Detected Jenkins auto-merge to main. Skipping redundant pipeline run."
-                            currentBuild.result = 'SUCCESS'            // Mark build as successful
-                            error("Skipping pipeline due to auto-merge")  // Hard stop pipeline execution
-                        } else {
-                            echo "[DEBUG] Commit is not an auto-merge. Continuing pipeline."
+                        if (lastCommitMessage.startsWith("JENKINS AUTO MERGE -")) {
+                            echo "[INFO] Auto-merge commit detected. Skipping redundant build."
+                            currentBuild.result = 'SUCCESS'
+                            error("Stopping pipeline: redundant auto-merge build on main.")
                         }
-                    } else {
-                        echo "[INFO] Skip check not required for branch: ${currentBranch}"
                     }
                 }
             }
@@ -45,12 +38,12 @@ pipeline {
         stage('Start SSH Agent') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'  // Confirm SSH access
+                    sh 'ssh -o StrictHostKeyChecking=no -T git@github.com || true'  // Validate SSH access
                 }
             }
         }
 
-        stage('Checkout feature-test') {
+        stage('Clone feature-test branch (clean)') {
             steps {
                 checkout([$class: 'GitSCM',
                     branches: [[name: '*/feature-test']],
@@ -62,12 +55,12 @@ pipeline {
             }
         }
 
-        stage('Create Feature Branch') {
+        stage('Create & Push feature-${BUILD_NUMBER}') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER}         # Create a feature branch from feature-test
-                        git push origin feature-${BUILD_NUMBER}         # Push the feature branch to GitHub
+                        git checkout -b feature-${BUILD_NUMBER}
+                        git push origin feature-${BUILD_NUMBER}
                     """
                 }
             }
@@ -75,26 +68,26 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo "[DEBUG] Installing Python dependencies"
+                echo "[DEBUG] Installing dependencies"
                 sh '''
                     set -e
-                    [ ! -d venv ] && python3 -m venv venv             # Create virtual environment if missing
-                    . venv/bin/activate                               # Activate virtual environment
-                    pip install --upgrade pip flask pytest gunicorn requests  # Install Python dependencies
+                    [ ! -d venv ] && python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip flask pytest gunicorn requests
                 '''
             }
         }
 
         stage('Test') {
             steps {
-                echo "[DEBUG] Running pytest and Flask health"
+                echo "[DEBUG] Running tests"
                 sh '''
                     set -e
-                    . venv/bin/activate                               # Activate Python environment
-                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &         # Start Flask app
-                    sleep 5                                           # Wait for app to load
-                    pytest test_app.py                                # Run tests
-                    pkill -f gunicorn || true                         # Kill Gunicorn
+                    . venv/bin/activate
+                    gunicorn -w 1 -b 127.0.0.1:5000 app:app &
+                    sleep 5
+                    pytest test_app.py
+                    pkill -f gunicorn || true
                 '''
             }
         }
@@ -103,18 +96,17 @@ pipeline {
             steps {
                 script {
                     try {
-                        echo "[DEBUG] Running deploy.sh script"
+                        echo "[DEBUG] Running deploy script"
                         sh '''
-                            chmod +x deploy.sh                        # Make deploy script executable
-                            ./deploy.sh                               # Run deployment script
+                            chmod +x deploy.sh
+                            ./deploy.sh
                         '''
-                        DEPLOY_SUCCESS = 'true'                       // Set deployment success flag
+                        DEPLOY_SUCCESS = 'true'
                         echo "[DEBUG] DEPLOY_SUCCESS=true"
                         currentBuild.description = "DEPLOY_SUCCESS=true"
                     } catch (err) {
                         echo "[ERROR] Deployment failed: ${err.message}"
                         DEPLOY_SUCCESS = 'false'
-                        echo "[DEBUG] DEPLOY_SUCCESS=false"
                         currentBuild.description = "DEPLOY_SUCCESS=false"
                         currentBuild.result = 'FAILURE'
                     }
@@ -125,31 +117,31 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    echo "[DEBUG] Checking DEPLOY_SUCCESS value for merge stage: ${DEPLOY_SUCCESS}"
-                    return DEPLOY_SUCCESS == 'true'  // ✅ Check deploy success before merging
+                    echo "[DEBUG] Checking if deploy succeeded for merge stage: ${DEPLOY_SUCCESS}"
+                    return DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
                 script {
                     try {
-                        echo "[INFO] Attempting to merge feature-${BUILD_NUMBER} to main"
+                        echo "[INFO] Merging feature-${BUILD_NUMBER} to main"
                         sshagent(credentials: ['Jenkins-GitHub-SSH']) {
-                            def lastCommit = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                            def lastCommit = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
                             echo "[DEBUG] Commit before merge: ${lastCommit}"
 
-                            if (!lastCommit.startsWith('JENKINS AUTO MERGE -')) {
+                            if (!lastCommit.startsWith("JENKINS AUTO MERGE -")) {
                                 sh """
-                                    git config user.name 'jenkins'                              # Set Git user
-                                    git config user.email 'jenkins@example.com'                 # Set Git email
-                                    git checkout main                                           # Switch to main
-                                    git pull origin main                                        # Sync with remote
+                                    git config user.name 'jenkins'
+                                    git config user.email 'jenkins@example.com'
+                                    git checkout main
+                                    git pull origin main
                                     git merge --no-ff feature-${BUILD_NUMBER} -m 'JENKINS AUTO MERGE - CI: Auto-merge feature branch to main after successful pipeline'
-                                    git push origin main                                        # Push changes to GitHub
+                                    git push origin main
                                 """
-                                MERGE_SUCCESS = 'true'                                         // Mark merge as successful
+                                MERGE_SUCCESS = 'true'
                                 echo "[DEBUG] MERGE_SUCCESS=true"
                             } else {
-                                echo "[INFO] Merge skipped - already merged by Jenkins."
+                                echo "[INFO] Merge skipped - already auto-merged"
                             }
                         }
                     } catch (e) {
@@ -165,7 +157,7 @@ pipeline {
     post {
         always {
             script {
-                def slack = load 'slack_notifications.groovy'  // Load Slack helper
+                def slack = load 'slack_notifications.groovy'
 
                 def mergeStatus = MERGE_SUCCESS == 'true'
                 def deployStatus = DEPLOY_SUCCESS == 'true'
@@ -180,7 +172,7 @@ pipeline {
                     deployStatus
                 )
 
-                slack.sendSlackNotification(message, color)  //  Send Slack update
+                slack.sendSlackNotification(message, color)
             }
         }
     }  // Close post block
