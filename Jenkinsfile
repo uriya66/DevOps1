@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DEPLOY_SUCCESS = 'false'   // Track deployment result across stages
-        MERGE_SUCCESS = 'false'    // Track merge result across stages
+        MERGE_SUCCESS  = 'false'   // Track merge result across stages
     }
 
     stages {
@@ -145,7 +145,7 @@ pipeline {
                         }
                     } catch (err) {
                         echo "[ERROR] Merge failed: ${err.message}"
-                        MERGE_SUCCESS = 'false'  // Mark merge as failed
+                        MERGE_SUCCESS = 'false'                                                       // Mark merge as failed
                         echo "[DEBUG] MERGE_SUCCESS=false"
                     }
                 }
@@ -158,17 +158,17 @@ pipeline {
             script {
                 def slack = load 'slack_notifications.groovy'  // Load Slack notification helper script
 
-                def mergeStatus = MERGE_SUCCESS == 'true'
+                def mergeStatus  = MERGE_SUCCESS == 'true'
                 def deployStatus = DEPLOY_SUCCESS == 'true'
-                def color = (mergeStatus && deployStatus) ? 'good' : 'danger'
+                def color        = (mergeStatus && deployStatus) ? 'good' : 'danger'
 
                 echo "[DEBUG] Sending Slack notification with DEPLOY_SUCCESS=${deployStatus}, MERGE_SUCCESS=${mergeStatus}"
 
                 def message = slack.constructSlackMessage(
-                    env.BUILD_NUMBER,
-                    env.BUILD_URL,
-                    mergeStatus,
-                    deployStatus
+                    env.BUILD_NUMBER,      // Jenkins build number
+                    env.BUILD_URL,         // Jenkins build URL
+                    mergeStatus,           // Boolean merge status
+                    deployStatus           // Boolean deploy status
                 )
 
                 slack.sendSlackNotification(message, color)  // Send formatted message to Slack
