@@ -26,7 +26,7 @@
     <div class="container text-center mt-5">
         <h1 class="display-4 text-danger">🚫 404 - Page Not Found</h1>
         <p class="lead">Oops! The page you're looking for doesn't exist.</p>
-        <img src="https://source.unsplash.com/800x400/?error,404" class="img-fluid rounded shadow-lg mb-3">
+        <img src="{{ url_for('static', filename='images/red check.png') }}" class="img-fluid rounded shadow-lg mb-3">
         <a href="/" class="btn btn-primary btn-lg">🏠 Back to Home</a>
     </div>
 </body>
