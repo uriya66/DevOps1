@@ -2,33 +2,30 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = 'false'  // Track deployment status
-        MERGE_SUCCESS = 'false'   // Track merge status
+        DEPLOY_SUCCESS = ''  // Track deployment status (string intentionally)
+        MERGE_SUCCESS = ''   // Track merge status (string intentionally)
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                checkout scm  // Checkout source triggered this pipeline
+                checkout scm  // Checkout the source that triggered this pipeline
             }
         }
 
         stage('Skip Redundant Merge Builds') {
-                when {
-                        branch 'main'  // Run this step only on main
+            steps {
+                script {
+                    def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    echo "[DEBUG] Last commit message: ${lastCommitMessage}"
+
+                    if (lastCommitMessage.contains('CI: Auto-merge feature branch to main after successful pipeline')) {
+                        echo "[INFO] Detected auto-merge commit. Skipping build."
+                        currentBuild.result = 'SUCCESS'
+                        return
+                    }
                 }
-                steps {
-                       script {
-                            def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                            echo "[DEBUG] Last commit message: ${lastCommitMessage}"
-                            if (lastCommitMessage.contains('Auto-merge feature branch to main')) {
-                                echo "[INFO] Detected auto-merge commit. Skipping build."
-                                currentBuild.result = 'SUCCESS'
-                                // Exit early to skip rest of pipeline
-                                return
-                            }
-                       }
-                }
+            }
         }
 
         stage('Start SSH Agent') {
@@ -97,11 +94,11 @@ pipeline {
                             chmod +x deploy.sh
                             ./deploy.sh
                         '''
-                        DEPLOY_SUCCESS = 'true'
+                        env.DEPLOY_SUCCESS = 'true'  // Set global string env var
                         currentBuild.description = "DEPLOY_SUCCESS=true"
                     } catch (err) {
                         echo "[ERROR] Deployment failed: ${err.message}"
-                        DEPLOY_SUCCESS = 'false'
+                        env.DEPLOY_SUCCESS = 'false'
                         currentBuild.description = "DEPLOY_SUCCESS=false"
                         currentBuild.result = 'FAILURE'
                     }
@@ -112,7 +109,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    return currentBuild.description?.contains('DEPLOY_SUCCESS=true')
+                    return env.DEPLOY_SUCCESS == 'true'
                 }
             }
             steps {
@@ -129,10 +126,10 @@ pipeline {
                                 git push origin main
                             """
                         }
-                        MERGE_SUCCESS = 'true'
+                        env.MERGE_SUCCESS = 'true'
                     } catch (e) {
                         echo "[ERROR] Merge failed: ${e.message}"
-                        MERGE_SUCCESS = 'false'
+                        env.MERGE_SUCCESS = 'false'
                     }
                 }
             }
@@ -144,8 +141,8 @@ pipeline {
             script {
                 def slack = load 'slack_notifications.groovy'
 
-                def mergeStatus = MERGE_SUCCESS == 'true'
-                def deployStatus = DEPLOY_SUCCESS == 'true'
+                def mergeStatus = env.MERGE_SUCCESS == 'true'
+                def deployStatus = env.DEPLOY_SUCCESS == 'true'
                 def color = (mergeStatus && deployStatus) ? 'good' : 'danger'
 
                 def message = slack.constructSlackMessage(
