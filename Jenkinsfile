@@ -14,17 +14,21 @@ pipeline {
         }
 
         stage('Skip Redundant Merge Builds') {
-            steps {
-                script {
-                    def lastCommit = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                    echo "[DEBUG] Last commit message: ${lastCommit}"
-                    if (lastCommit.contains('Merge branch')) {
-                        echo "[INFO] Skipping redundant build triggered by merge commit."
-                        currentBuild.result = 'SUCCESS'
-                        return
-                    }
+                when {
+                        branch 'main'  // Run this step only on main
                 }
-            }
+                steps {
+                       script {
+                            def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                            echo "[DEBUG] Last commit message: ${lastCommitMessage}"
+                            if (lastCommitMessage.contains('Auto-merge feature branch to main')) {
+                                echo "[INFO] Detected auto-merge commit. Skipping build."
+                                currentBuild.result = 'SUCCESS'
+                                // Exit early to skip rest of pipeline
+                                return
+                            }
+                       }
+                }
         }
 
         stage('Start SSH Agent') {
