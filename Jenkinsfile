@@ -4,12 +4,17 @@ pipeline {
     environment {
         DEPLOY_SUCCESS = 'false'  // Track deployment result
         MERGE_SUCCESS = 'false'   // Track merge result
+        GIT_SOURCE_BRANCH = ''    // Original push source (main or feature-test)
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
                 checkout scm  // Checkout source code from SCM
+                script {
+                    GIT_SOURCE_BRANCH = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    echo "[DEBUG] GIT_SOURCE_BRANCH=${GIT_SOURCE_BRANCH}"
+                }
             }
         }
 
@@ -35,7 +40,7 @@ pipeline {
             }
         }
 
-        stage('Checkout Main') {
+        stage('Checkout feature-test') {
             steps {
                 checkout([$class: 'GitSCM',
                     branches: [[name: '*/feature-test']],
@@ -43,7 +48,7 @@ pipeline {
                         url: 'git@github.com:uriya66/DevOps1.git',
                         credentialsId: 'Jenkins-GitHub-SSH'
                     ]]
-                ])  // Checkout main branch explicitly
+                ])  // Ensure we use the latest pushed code from feature-test
             }
         }
 
@@ -51,7 +56,7 @@ pipeline {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
-                        git checkout -b feature-${BUILD_NUMBER} origin/feature-test  # Create new branch
+                        git checkout -b feature-${BUILD_NUMBER}  # Create new branch from latest push
                         git push origin feature-${BUILD_NUMBER}  # Push to GitHub
                     """
                 }
@@ -110,9 +115,7 @@ pipeline {
         stage('Merge to Main') {
             when {
                 expression {
-                    def deployFlag = currentBuild.description?.contains('DEPLOY_SUCCESS=true')
-                    echo "[DEBUG] DEPLOY_SUCCESS from description: ${deployFlag}"
-                    return deployFlag
+                    return currentBuild.description?.contains('DEPLOY_SUCCESS=true')
                 }
             }
             steps {
@@ -125,8 +128,8 @@ pipeline {
                                 git config user.email 'jenkins@example.com'
                                 git checkout main
                                 git pull origin main
-                                git merge --no-ff feature-${BUILD_NUMBER} || echo "[INFO] Nothing to merge"
-                                git push origin main || echo "[INFO] Nothing was pushed to main"
+                                git merge --no-ff feature-${BUILD_NUMBER} -m 'CI: Auto-merge feature branch to main after successful pipeline'
+                                git push origin main
                             """
                         }
                         MERGE_SUCCESS = 'true'
@@ -158,7 +161,6 @@ pipeline {
                 slack.sendSlackNotification(message, color)  // Send Slack notification
             }
         }
-    }  // Close post block
-}  // Close pipeline block
-
+    }
+}
 
