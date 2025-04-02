@@ -2,18 +2,18 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = 'false'   // Track deployment status
+        DEPLOY_SUCCESS = 'false'  // Track deployment status
         MERGE_SUCCESS = 'false'   // Track merge status
     }
 
     stages {
-        stage('Checkout SCM') {
+        stage('Init Git from Trigger Source') {
             steps {
                 checkout scm  // Checkout the source that triggered the pipeline
             }
         }
 
-        stage('Skip Redundant Merge Builds') {
+        stage('Skip Auto-Merge Loop on main') {
             steps {
                 script {
                     // Get the current branch name
@@ -47,7 +47,7 @@ pipeline {
             }
         }
 
-        stage('Checkout feature-test') {
+        stage('Clone feature-test branch (clean)') {
             steps {
                 checkout([$class: 'GitSCM',
                     branches: [[name: '*/feature-test']],
@@ -59,7 +59,7 @@ pipeline {
             }
         }
 
-        stage('Create Feature Branch') {
+        stage('Create & Push feature-${BUILD_NUMBER}') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
@@ -182,4 +182,3 @@ pipeline {
         }
     }  // Close post block
 }  // Close pipeline block
-
