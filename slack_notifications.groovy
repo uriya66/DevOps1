@@ -27,26 +27,26 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         def resultNote = ""
         if (deploySuccess != null) {
             if (deploySuccess) {
-                resultNote += "*Deploy:* ✅ Successful - app deployed to server\n"
+                resultNote += "*Deploy:* Successful - app deployed to server\n"
                 resultNote += "*Merge:* The build was successful\n"
                 resultNote += "Push to main by running the following commands:\n\n"
                 resultNote += "```\n"
                 resultNote += "git checkout main\n"
-                resultNote += "git add .\n"
-                resultNote += "git commit -m \"${commitMessage}\"\n"
+                resultNote += "git pull origin main\n"
+                resultNote += "git merge feature-test\n"
                 resultNote += "git push origin main\n"
                 resultNote += "\nAnd don't forget to go back to feature-test\n"
                 resultNote += "git checkout feature-test\n"
                 resultNote += "```\n"
             } else {
-                resultNote += "*Deploy:* ❌ Failed - deployment script error\n"
-                resultNote += "*Merge:* ❌ The build failed - don't push to main\n"
+                resultNote += "*Deploy:* Failed - deployment script error\n"
+                resultNote += "*Merge:* The build failed - don't push to main\n"
             }
         }
 
         // Build full Slack message with clean format
         return """
-*✅ Jenkins Build Completed!*
+*Jenkins Build Completed!*
 *Pipeline:* #${buildNumber}
 *Branch:* feature-${buildNumber}
 *Commit:* [${commitId}](${commitUrl})
@@ -60,7 +60,7 @@ ${resultNote}
 
     } catch (e) {
         echo "Slack message error: ${e.message}"  // Log error if message construction fails
-        return "*❌ Error building Slack message*\nReason: ${e.message}" // Return fallback message
+        return "*Error building Slack message*\nReason: ${e.message}" // Return fallback message
     }
 }
 
@@ -80,4 +80,3 @@ def sendSlackNotification(String message, String color) {
 
 // Return this script object so it can be load to Jenkinsfile
 return this
-
