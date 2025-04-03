@@ -2,38 +2,41 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_SUCCESS = 'false'   // Track deployment status
+        DEPLOY_SUCCESS = 'false'  // Track deployment status
         MERGE_SUCCESS = 'false'   // Track merge status
+        CURRENT_BRANCH = ''       // Track current branch globally
     }
 
     stages {
-        stage('Checkout SCM') {
+        stage('Init Git from Trigger Source') {
             steps {
                 checkout scm  // Checkout the source that triggered the pipeline
             }
         }
 
-        stage('Skip Redundant Merge Builds') {
+        stage('Skip Auto-Merge Loop on main') {
             steps {
                 script {
-                    // Get the current branch name
-                    def currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                    echo "[DEBUG] Current branch for skip check: ${currentBranch}"
+                    // Attempt to get the current branch from env or git command
+                    def detectedBranch = env.GIT_BRANCH?.replaceFirst(/^origin\//, '') ?: sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    echo "[DEBUG] Detected branch: ${detectedBranch}"
+                    CURRENT_BRANCH = detectedBranch
+                    echo "[DEBUG] CURRENT_BRANCH (global) = ${CURRENT_BRANCH}"
 
                     // Skip redundant builds only for main
-                    if (currentBranch == 'main') {
+                    if (detectedBranch == 'main' || detectedBranch == 'origin/main' || detectedBranch == 'HEAD') {
                         def lastCommitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                         echo "[DEBUG] Last commit message: ${lastCommitMessage}"
 
                         if (lastCommitMessage.startsWith('JENKINS AUTO MERGE -')) {
                             echo "[INFO] Detected auto-merge commit by Jenkins. Skipping redundant pipeline run."
                             currentBuild.result = 'SUCCESS'
-                            error("Skipping pipeline due to auto-merge")  //  Fully stops the pipeline
+                            error("Skipping pipeline due to auto-merge")  // Fully stops the pipeline
                         } else {
                             echo "[DEBUG] Commit is not an auto-merge. Continuing pipeline."
                         }
                     } else {
-                        echo "[INFO] Skip check not needed for branch: ${currentBranch}"
+                        echo "[INFO] Skip check not needed for branch: ${detectedBranch}"
                     }
                 }
             }
@@ -47,7 +50,7 @@ pipeline {
             }
         }
 
-        stage('Checkout feature-test') {
+        stage('Clone feature-test branch (clean)') {
             steps {
                 checkout([$class: 'GitSCM',
                     branches: [[name: '*/feature-test']],
@@ -59,7 +62,7 @@ pipeline {
             }
         }
 
-        stage('Create Feature Branch') {
+        stage('Create & Push feature-${BUILD_NUMBER}') {
             steps {
                 sshagent(credentials: ['Jenkins-GitHub-SSH']) {
                     sh """
@@ -123,7 +126,7 @@ pipeline {
             when {
                 expression {
                     echo "[DEBUG] Checking DEPLOY_SUCCESS value for merge stage: ${DEPLOY_SUCCESS}"
-                    return DEPLOY_SUCCESS == 'true'  // ✅ Check deploy success before merging
+                    return DEPLOY_SUCCESS == 'true'  // Check deploy success before merging
                 }
             }
             steps {
