@@ -1,3 +1,4 @@
+
 // Build Slack message from Jenkins data and Git
 def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySuccess = null) {
     try {
@@ -22,14 +23,28 @@ def constructSlackMessage(buildNumber, buildUrl, mergeSuccess = null, deploySucc
         // Construct Flask app URL
         def appUrl = "http://${publicIp}:5000"
 
-        // Build result summary (merge/deploy)
+        // Build result summary (deploy only)
         def resultNote = ""
-        if (mergeSuccess != null && deploySuccess != null) {
-            resultNote += mergeSuccess ? "*Merge:* ✅ Successful - merged to main\n" : "*Merge:* ❌ Failed - merge error occurred\n"
-            resultNote += deploySuccess ? "*Deploy:* ✅ Successful - app deployed to server\n" : "*Deploy:* ❌ Failed - deployment script error\n"
+        if (deploySuccess != null) {
+            if (deploySuccess) {
+                resultNote += "*Deploy:* ✅ Successful - app deployed to server\n"
+                resultNote += "*Merge:* The build was successful\n"
+                resultNote += "Push to main by running the following commands:\n\n"
+                resultNote += "```\n"
+                resultNote += "git checkout main\n"
+                resultNote += "git add .\n"
+                resultNote += "git commit -m \"${commitMessage}\"\n"
+                resultNote += "git push origin main\n"
+                resultNote += "\nAnd don't forget to go back to feature-test\n"
+                resultNote += "git checkout feature-test\n"
+                resultNote += "```\n"
+            } else {
+                resultNote += "*Deploy:* ❌ Failed - deployment script error\n"
+                resultNote += "*Merge:* ❌ The build failed - don't push to main\n"
+            }
         }
 
-        // Build full Slack message with clean format (no localhost
+        // Build full Slack message with clean format
         return """
 *✅ Jenkins Build Completed!*
 *Pipeline:* #${buildNumber}
@@ -64,4 +79,5 @@ def sendSlackNotification(String message, String color) {
 }
 
 // Return this script object so it can be load to Jenkinsfile
-return this  // Return this object to Jenkinsfile
+return this
+
