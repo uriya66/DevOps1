@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // Dynamically checkout the branch that triggered the pipeline
+                // Dynamically checkout the branch that triggered the pipeline 
                 checkout scm
             }
         }
